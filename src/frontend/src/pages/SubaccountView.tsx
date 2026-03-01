@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -20,14 +21,14 @@ import {
 import {
   Activity,
   ArrowLeft,
+  Calculator,
   FlaskConical,
   Search,
   TestTube,
-  Users,
   X,
 } from "lucide-react";
-import { motion } from "motion/react";
-import { useEffect, useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
+import { useState } from "react";
 import type { PathologyTest } from "../backend.d.ts";
 import { useGetAllTests } from "../hooks/useQueries";
 
@@ -73,6 +74,7 @@ export default function SubaccountView({
   const { data: tests = [], isLoading } = useGetAllTests();
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const categories = Array.from(
     new Set(tests.map((t: PathologyTest) => t.category)),
@@ -89,6 +91,50 @@ export default function SubaccountView({
 
   // Group for category summary
   const categoryCount = categories.length;
+
+  // Selection helpers
+  const filteredIds = filteredTests.map((t: PathologyTest) => String(t.id));
+  const allFilteredSelected =
+    filteredIds.length > 0 && filteredIds.every((id) => selectedIds.has(id));
+  const someFilteredSelected = filteredIds.some((id) => selectedIds.has(id));
+
+  const toggleSelectAll = () => {
+    if (allFilteredSelected) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        for (const id of filteredIds) next.delete(id);
+        return next;
+      });
+    } else {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        for (const id of filteredIds) next.add(id);
+        return next;
+      });
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectedTests = tests.filter((t: PathologyTest) =>
+    selectedIds.has(String(t.id)),
+  );
+  const totalMrp = selectedTests.reduce(
+    (sum: number, t: PathologyTest) => sum + t.mrp,
+    0,
+  );
+  const totalB2b = selectedTests.reduce(
+    (sum: number, t: PathologyTest) => sum + t.b2bRate,
+    0,
+  );
+  const grandTotal = totalMrp + totalB2b;
 
   return (
     <div className="min-h-screen bg-background">
@@ -221,7 +267,20 @@ export default function SubaccountView({
               <Table>
                 <TableHeader>
                   <TableRow className="bg-[oklch(0.25_0.07_215)] hover:bg-[oklch(0.25_0.07_215)]">
-                    <TableHead className="text-white font-semibold pl-6 py-3">
+                    <TableHead className="pl-4 w-10 py-3">
+                      <Checkbox
+                        checked={allFilteredSelected}
+                        data-state={
+                          someFilteredSelected && !allFilteredSelected
+                            ? "indeterminate"
+                            : undefined
+                        }
+                        onCheckedChange={toggleSelectAll}
+                        aria-label="Select all tests"
+                        className="border-white/50 data-[state=checked]:bg-white data-[state=checked]:text-[oklch(0.25_0.07_215)]"
+                      />
+                    </TableHead>
+                    <TableHead className="text-white font-semibold pl-2 py-3">
                       Test Name
                     </TableHead>
                     <TableHead className="text-white font-semibold py-3">
@@ -230,8 +289,11 @@ export default function SubaccountView({
                     <TableHead className="text-white font-semibold text-right py-3">
                       MRP
                     </TableHead>
-                    <TableHead className="text-white font-semibold text-right py-3 pr-6">
+                    <TableHead className="text-white font-semibold text-right py-3">
                       B2B Rate
+                    </TableHead>
+                    <TableHead className="text-white font-semibold text-right py-3 pr-6">
+                      Total
                     </TableHead>
                   </TableRow>
                 </TableHeader>
@@ -240,11 +302,17 @@ export default function SubaccountView({
                     Array.from({ length: 8 }).map((_, i) => (
                       // biome-ignore lint/suspicious/noArrayIndexKey: static skeletons
                       <TableRow key={`skel-${i}`}>
-                        <TableCell className="pl-6">
+                        <TableCell className="pl-4 w-10">
+                          <Skeleton className="h-4 w-4 rounded" />
+                        </TableCell>
+                        <TableCell className="pl-2">
                           <Skeleton className="h-4 w-52" />
                         </TableCell>
                         <TableCell>
                           <Skeleton className="h-5 w-28 rounded-full" />
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Skeleton className="h-4 w-16 ml-auto" />
                         </TableCell>
                         <TableCell className="text-right">
                           <Skeleton className="h-4 w-16 ml-auto" />
@@ -257,7 +325,7 @@ export default function SubaccountView({
                   ) : filteredTests.length === 0 ? (
                     <TableRow>
                       <TableCell
-                        colSpan={4}
+                        colSpan={6}
                         className="text-center py-16 text-[oklch(0.55_0.025_215)]"
                       >
                         <TestTube className="w-10 h-10 mx-auto mb-2 text-[oklch(0.75_0.02_215)]" />
@@ -270,38 +338,117 @@ export default function SubaccountView({
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredTests.map((test: PathologyTest, idx: number) => (
-                      <motion.tr
-                        key={String(test.id)}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ delay: idx * 0.02 }}
-                        className="border-b border-[oklch(0.93_0.01_215)] hover:bg-[oklch(0.97_0.008_200)] transition-colors"
-                      >
-                        <TableCell className="font-medium text-[oklch(0.22_0.06_215)] pl-6 py-3.5">
-                          {test.name}
-                        </TableCell>
-                        <TableCell className="py-3.5">
-                          <span
-                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getCategoryClass(test.category)}`}
+                    filteredTests.map((test: PathologyTest, idx: number) => {
+                      const testId = String(test.id);
+                      const isSelected = selectedIds.has(testId);
+                      return (
+                        <motion.tr
+                          key={testId}
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ delay: idx * 0.02 }}
+                          className={`border-b border-[oklch(0.93_0.01_215)] transition-colors cursor-pointer ${isSelected ? "bg-[oklch(0.93_0.05_210)]" : "hover:bg-[oklch(0.97_0.008_200)]"}`}
+                          onClick={() => toggleSelect(testId)}
+                        >
+                          <TableCell
+                            className="pl-4 w-10 py-3.5"
+                            onClick={(e) => e.stopPropagation()}
                           >
-                            {test.category}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-right py-3.5 font-mono text-[oklch(0.35_0.1_205)] font-semibold">
-                          {formatCurrency(test.mrp)}
-                        </TableCell>
-                        <TableCell className="text-right py-3.5 pr-6">
-                          <div className="inline-flex items-center gap-1.5 bg-[oklch(0.92_0.07_160)] text-[oklch(0.35_0.12_160)] px-2.5 py-1 rounded-md font-mono font-semibold text-sm">
-                            {formatCurrency(test.b2bRate)}
-                          </div>
-                        </TableCell>
-                      </motion.tr>
-                    ))
+                            <Checkbox
+                              checked={isSelected}
+                              onCheckedChange={() => toggleSelect(testId)}
+                              aria-label={`Select ${test.name}`}
+                            />
+                          </TableCell>
+                          <TableCell className="font-medium text-[oklch(0.22_0.06_215)] pl-2 py-3.5">
+                            {test.name}
+                          </TableCell>
+                          <TableCell className="py-3.5">
+                            <span
+                              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getCategoryClass(test.category)}`}
+                            >
+                              {test.category}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right py-3.5 font-mono text-[oklch(0.35_0.1_205)] font-semibold">
+                            {formatCurrency(test.mrp)}
+                          </TableCell>
+                          <TableCell className="text-right py-3.5">
+                            <div className="inline-flex items-center gap-1.5 bg-[oklch(0.92_0.07_160)] text-[oklch(0.35_0.12_160)] px-2.5 py-1 rounded-md font-mono font-semibold text-sm">
+                              {formatCurrency(test.b2bRate)}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right py-3.5 pr-6 font-mono text-[oklch(0.32_0.1_270)] font-bold">
+                            {formatCurrency(test.mrp + test.b2bRate)}
+                          </TableCell>
+                        </motion.tr>
+                      );
+                    })
                   )}
                 </TableBody>
               </Table>
             </div>
+            {/* Summary / Calculator Bar */}
+            <AnimatePresence>
+              {selectedTests.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 12, height: 0 }}
+                  animate={{ opacity: 1, y: 0, height: "auto" }}
+                  exit={{ opacity: 0, y: 12, height: 0 }}
+                  transition={{ duration: 0.25, ease: "easeOut" }}
+                  className="overflow-hidden border-t border-[oklch(0.82_0.05_270)]"
+                >
+                  <div className="px-6 py-4 bg-[oklch(0.94_0.04_270)]">
+                    <div className="flex flex-wrap items-center gap-4">
+                      <div className="flex items-center gap-2 text-[oklch(0.32_0.1_270)]">
+                        <Calculator className="w-4 h-4" />
+                        <span className="font-semibold text-sm">
+                          {selectedTests.length} test
+                          {selectedTests.length > 1 ? "s" : ""} selected
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-3 ml-auto">
+                        <div className="text-sm">
+                          <span className="text-[oklch(0.55_0.04_270)]">
+                            Total MRP:
+                          </span>{" "}
+                          <span className="font-mono font-semibold text-[oklch(0.35_0.1_205)]">
+                            {formatCurrency(totalMrp)}
+                          </span>
+                        </div>
+                        <div className="w-px h-4 bg-[oklch(0.78_0.06_270)]" />
+                        <div className="text-sm">
+                          <span className="text-[oklch(0.55_0.04_270)]">
+                            Total B2B:
+                          </span>{" "}
+                          <span className="font-mono font-semibold text-[oklch(0.4_0.12_160)]">
+                            {formatCurrency(totalB2b)}
+                          </span>
+                        </div>
+                        <div className="w-px h-4 bg-[oklch(0.78_0.06_270)]" />
+                        <div className="bg-[oklch(0.32_0.1_270)] text-white px-4 py-1.5 rounded-lg">
+                          <span className="text-xs text-white/70 mr-1">
+                            Grand Total:
+                          </span>
+                          <span className="font-mono font-bold">
+                            {formatCurrency(grandTotal)}
+                          </span>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setSelectedIds(new Set())}
+                          className="h-7 px-2 text-[oklch(0.45_0.08_270)] hover:bg-[oklch(0.88_0.06_270)] hover:text-[oklch(0.3_0.1_270)]"
+                        >
+                          <X className="w-3 h-3 mr-1" />
+                          Clear
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
             {filteredTests.length > 0 && (
               <div className="px-6 py-3 flex items-center justify-between text-sm text-[oklch(0.55_0.025_215)] border-t border-[oklch(0.93_0.01_215)]">
                 <span>

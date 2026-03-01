@@ -1,0 +1,97 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: "Outfit";
+  src: url("/assets/fonts/Outfit-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Fraunces";
+  src: url("/assets/fonts/Fraunces-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@layer base {
+  :root {
+    --radius: 0.5rem;
+
+    /* Teal-based clinical palette */
+    --background: 0.97 0.008 195;
+    --foreground: 0.18 0.03 220;
+
+    --card: 1 0 0;
+    --card-foreground: 0.18 0.03 220;
+
+    --popover: 1 0 0;
+    --popover-foreground: 0.18 0.03 220;
+
+    /* Deep teal primary */
+    --primary: 0.38 0.1 210;
+    --primary-foreground: 0.98 0 0;
+
+    --secondary: 0.93 0.015 200;
+    --secondary-foreground: 0.25 0.05 210;
+
+    --muted: 0.93 0.012 200;
+    --muted-foreground: 0.52 0.025 215;
+
+    --accent: 0.88 0.06 175;
+    --accent-foreground: 0.22 0.07 190;
+
+    --destructive: 0.577 0.245 27.325;
+    --destructive-foreground: 0.985 0 0;
+
+    --border: 0.88 0.02 200;
+    --input: 0.88 0.02 200;
+    --ring: 0.38 0.1 210;
+
+    --chart-1: 0.55 0.15 210;
+    --chart-2: 0.6 0.12 160;
+    --chart-3: 0.65 0.18 30;
+    --chart-4: 0.7 0.14 280;
+    --chart-5: 0.75 0.18 60;
+
+    --sidebar: 0.22 0.06 220;
+    --sidebar-foreground: 0.95 0 0;
+    --sidebar-primary: 0.65 0.18 175;
+    --sidebar-primary-foreground: 0.1 0.03 220;
+    --sidebar-accent: 0.3 0.07 215;
+    --sidebar-accent-foreground: 0.95 0 0;
+    --sidebar-border: 0.3 0.05 215;
+    --sidebar-ring: 0.55 0.12 200;
+
+    /* Custom tokens */
+    --teal-light: 0.88 0.06 185;
+    --teal-mid: 0.55 0.12 195;
+    --teal-dark: 0.35 0.1 205;
+    --slate-surface: 0.95 0.01 220;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-outfit;
+    font-feature-settings: "kern" 1, "liga" 1;
+  }
+
+  h1, h2, h3 {
+    @apply font-fraunces;
+  }
+}
+
+@layer utilities {
+  .font-outfit {
+    font-family: "Outfit", sans-serif;
+  }
+  .font-fraunces {
+    font-family: "Fraunces", serif;
+  }
+}

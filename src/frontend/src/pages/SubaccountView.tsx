@@ -338,17 +338,18 @@ export default function SubaccountView({
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredTests.map((test: PathologyTest, idx: number) => {
+                    filteredTests.map((test: PathologyTest) => {
                       const testId = String(test.id);
                       const isSelected = selectedIds.has(testId);
                       return (
-                        <motion.tr
+                        <tr
                           key={testId}
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          transition={{ delay: idx * 0.02 }}
                           className={`border-b border-[oklch(0.93_0.01_215)] transition-colors cursor-pointer ${isSelected ? "bg-[oklch(0.93_0.05_210)]" : "hover:bg-[oklch(0.97_0.008_200)]"}`}
                           onClick={() => toggleSelect(testId)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ")
+                              toggleSelect(testId);
+                          }}
                         >
                           <TableCell
                             className="pl-4 w-10 py-3.5"
@@ -381,7 +382,7 @@ export default function SubaccountView({
                           <TableCell className="text-right py-3.5 pr-6 font-mono text-[oklch(0.32_0.1_270)] font-bold">
                             {formatCurrency(test.mrp + test.b2bRate)}
                           </TableCell>
-                        </motion.tr>
+                        </tr>
                       );
                     })
                   )}

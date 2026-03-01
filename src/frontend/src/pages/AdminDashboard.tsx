@@ -27,6 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -41,12 +42,15 @@ import {
   Calculator,
   Check,
   FlaskConical,
+  KeyRound,
   Loader2,
   LogOut,
   Pencil,
   Plus,
   Search,
+  Settings,
   ShieldCheck,
+  Smartphone,
   TestTube,
   Trash2,
   Users,
@@ -68,6 +72,12 @@ import {
   useGetAllTests,
   useUpdatePathologyTest,
 } from "../hooks/useQueries";
+import {
+  getAdminMobile,
+  getPasswordOverride,
+  setAdminMobile,
+  setPasswordOverride,
+} from "../utils/adminSettings";
 
 interface AdminDashboardProps {
   onLogout: () => void;
@@ -128,6 +138,184 @@ const CATEGORIES = [
   "Endocrinology",
   "Other",
 ];
+
+// ─── Settings Panel ───────────────────────────────────────────────────────────
+
+function SettingsPanel() {
+  const currentMobile = getAdminMobile();
+
+  const [mobileInput, setMobileInput] = useState(currentMobile ?? "");
+  const [mobileSaving, setMobileSaving] = useState(false);
+
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [pwSaving, setPwSaving] = useState(false);
+
+  const maskedMobile = currentMobile
+    ? `••••••${currentMobile.slice(-4)}`
+    : "Not set";
+
+  const handleSaveMobile = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!mobileInput.trim()) {
+      toast.error("Please enter a valid mobile number.");
+      return;
+    }
+    setMobileSaving(true);
+    setTimeout(() => {
+      setAdminMobile(mobileInput.trim());
+      toast.success("Mobile number saved successfully!");
+      setMobileSaving(false);
+    }, 300);
+  };
+
+  const handleSavePassword = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPassword.trim()) {
+      toast.error("New password cannot be empty.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error("Passwords do not match.");
+      return;
+    }
+    if (newPassword.length < 4) {
+      toast.error("Password must be at least 4 characters.");
+      return;
+    }
+    setPwSaving(true);
+    setTimeout(() => {
+      setPasswordOverride(newPassword);
+      toast.success("Password updated successfully!");
+      setNewPassword("");
+      setConfirmPassword("");
+      setPwSaving(false);
+    }, 300);
+  };
+
+  return (
+    <div className="max-w-2xl space-y-6">
+      {/* Security Settings Card */}
+      <Card className="border-[oklch(0.88_0.02_200)] shadow-sm">
+        <CardHeader className="pb-2">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-[oklch(0.92_0.06_200)] rounded-lg flex items-center justify-center">
+              <ShieldCheck className="w-4 h-4 text-[oklch(0.38_0.1_210)]" />
+            </div>
+            <CardTitle className="font-fraunces text-[oklch(0.25_0.06_215)] text-lg">
+              Security Settings
+            </CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6 pt-4">
+          {/* Mobile Number Section */}
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <Smartphone className="w-4 h-4 text-[oklch(0.45_0.12_175)]" />
+              <h3 className="font-semibold text-[oklch(0.3_0.05_215)] text-sm">
+                Registered Mobile Number
+              </h3>
+            </div>
+            {currentMobile && (
+              <div className="mb-3 px-3 py-2 bg-[oklch(0.95_0.02_185)] rounded-lg border border-[oklch(0.88_0.05_185)] text-sm text-[oklch(0.4_0.08_185)]">
+                Current:{" "}
+                <span className="font-mono font-semibold">{maskedMobile}</span>
+              </div>
+            )}
+            <form onSubmit={handleSaveMobile} className="flex gap-3">
+              <Input
+                type="tel"
+                value={mobileInput}
+                onChange={(e) => setMobileInput(e.target.value)}
+                placeholder="Enter mobile number (e.g. 9876543210)"
+                autoComplete="tel"
+                className="flex-1 border-[oklch(0.82_0.04_200)] focus:border-[oklch(0.38_0.1_210)]"
+              />
+              <Button
+                type="submit"
+                disabled={mobileSaving}
+                className="bg-[oklch(0.45_0.12_175)] hover:bg-[oklch(0.38_0.12_175)] text-white shrink-0"
+              >
+                {mobileSaving ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Check className="h-4 w-4" />
+                )}
+                <span className="ml-1.5">Save</span>
+              </Button>
+            </form>
+            <p className="text-xs text-[oklch(0.6_0.025_215)] mt-2">
+              This number will be used to verify your identity when using
+              "Forgot Password."
+            </p>
+          </div>
+
+          <Separator className="bg-[oklch(0.9_0.01_215)]" />
+
+          {/* Change Password Section */}
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <KeyRound className="w-4 h-4 text-[oklch(0.38_0.1_210)]" />
+              <h3 className="font-semibold text-[oklch(0.3_0.05_215)] text-sm">
+                Change Password (Frontend)
+              </h3>
+            </div>
+            <div className="mb-3 px-3 py-2 bg-[oklch(0.95_0.015_200)] rounded-lg border border-[oklch(0.88_0.04_200)] text-xs text-[oklch(0.52_0.025_215)]">
+              This sets your login password for this browser. The default
+              password is <span className="font-mono font-semibold">12345</span>
+              .{" "}
+              {getPasswordOverride()
+                ? "A custom password is currently active."
+                : "No custom password set — using default."}
+            </div>
+            <form onSubmit={handleSavePassword} className="space-y-3">
+              <div className="space-y-1.5">
+                <Label className="text-[oklch(0.3_0.05_215)] text-sm font-medium">
+                  New Password
+                </Label>
+                <Input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Enter new password"
+                  autoComplete="new-password"
+                  className="border-[oklch(0.82_0.04_200)] focus:border-[oklch(0.38_0.1_210)]"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[oklch(0.3_0.05_215)] text-sm font-medium">
+                  Confirm Password
+                </Label>
+                <Input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Confirm new password"
+                  autoComplete="new-password"
+                  className="border-[oklch(0.82_0.04_200)] focus:border-[oklch(0.38_0.1_210)]"
+                />
+              </div>
+              <Button
+                type="submit"
+                disabled={pwSaving}
+                className="bg-[oklch(0.38_0.1_210)] hover:bg-[oklch(0.32_0.1_210)] text-white"
+              >
+                {pwSaving ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Check className="mr-2 h-4 w-4" />
+                )}
+                {pwSaving ? "Saving..." : "Update Password"}
+              </Button>
+            </form>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ─── AdminDashboard ───────────────────────────────────────────────────────────
 
 export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const { sessionToken, logout } = useAuth();
@@ -533,6 +721,13 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
               <Users className="mr-2 h-4 w-4" />
               Subaccounts
             </TabsTrigger>
+            <TabsTrigger
+              value="settings"
+              className="data-[state=active]:bg-white data-[state=active]:text-[oklch(0.25_0.07_215)] data-[state=active]:shadow-sm"
+            >
+              <Settings className="mr-2 h-4 w-4" />
+              Settings
+            </TabsTrigger>
           </TabsList>
 
           {/* Tests Tab */}
@@ -672,17 +867,18 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                           </TableCell>
                         </TableRow>
                       ) : (
-                        filteredTests.map((test, idx) => {
+                        filteredTests.map((test) => {
                           const testId = String(test.id);
                           const isSelected = selectedIds.has(testId);
                           return (
-                            <motion.tr
+                            <tr
                               key={testId}
-                              initial={{ opacity: 0, y: 8 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              transition={{ delay: idx * 0.03 }}
                               className={`border-b border-[oklch(0.93_0.01_215)] transition-colors cursor-pointer ${isSelected ? "bg-[oklch(0.93_0.05_210)]" : "hover:bg-[oklch(0.97_0.008_200)]"}`}
                               onClick={() => toggleSelect(testId)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" || e.key === " ")
+                                  toggleSelect(testId);
+                              }}
                             >
                               <TableCell
                                 className="pl-4 w-10 py-3"
@@ -738,7 +934,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                                   </Button>
                                 </div>
                               </TableCell>
-                            </motion.tr>
+                            </tr>
                           );
                         })
                       )}
@@ -931,6 +1127,11 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                 </Card>
               </div>
             </div>
+          </TabsContent>
+
+          {/* Settings Tab */}
+          <TabsContent value="settings">
+            <SettingsPanel />
           </TabsContent>
         </Tabs>
       </main>

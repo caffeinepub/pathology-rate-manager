@@ -8,6 +8,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -46,11 +47,15 @@ import {
   Loader2,
   LogOut,
   Pencil,
+  Phone,
   Plus,
+  RotateCcw,
   Search,
   Settings,
   ShieldCheck,
   Smartphone,
+  Star,
+  Tag,
   TestTube,
   Trash2,
   Users,
@@ -68,9 +73,13 @@ import {
   useCreateSubAccount,
   useDeletePathologyTest,
   useDeleteSubAccount,
+  useDeleteSubAccountTestRate,
   useGetAllSubAccounts,
   useGetAllTests,
+  useGetSubAccountRates,
+  useSetSubAccountTestRate,
   useUpdatePathologyTest,
+  useUpdateSubAccount,
 } from "../hooks/useQueries";
 import {
   getAdminMobile,
@@ -111,6 +120,321 @@ function getCategoryClass(category: string): string {
 
 function formatCurrency(val: number): string {
   return `₹${val.toFixed(2)}`;
+}
+
+// ─── SubAccount Rates Dialog ──────────────────────────────────────────────────
+
+interface SubAccountRatesDialogProps {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  subAccount: SubAccount;
+  tests: PathologyTest[];
+  sessionToken: string;
+}
+
+function SubAccountRatesDialog({
+  open,
+  onOpenChange,
+  subAccount,
+  tests,
+  sessionToken,
+}: SubAccountRatesDialogProps) {
+  const { data: customRates = [], isLoading: ratesLoading } =
+    useGetSubAccountRates(open ? subAccount.id : null);
+
+  const setRateMutation = useSetSubAccountTestRate(sessionToken);
+  const deleteRateMutation = useDeleteSubAccountTestRate(sessionToken);
+
+  // Local state: map from testId string -> input value (string)
+  const [localRates, setLocalRates] = useState<Record<string, string>>({});
+  const [savingIds, setSavingIds] = useState<Set<string>>(new Set());
+
+  // Sync localRates from fetched customRates when dialog opens/data loads
+  useEffect(() => {
+    if (open && !ratesLoading) {
+      const map: Record<string, string> = {};
+      for (const r of customRates) {
+        map[String(r.testId)] = String(r.b2bRate);
+      }
+      setLocalRates(map);
+    }
+  }, [open, customRates, ratesLoading]);
+
+  const customRateMap = new Map<string, number>(
+    customRates.map((r) => [String(r.testId), r.b2bRate]),
+  );
+
+  const handleSaveRate = async (test: PathologyTest) => {
+    const testIdStr = String(test.id);
+    const val = localRates[testIdStr];
+    const parsedVal =
+      val !== undefined && val.trim() !== "" ? Number.parseFloat(val) : null;
+
+    setSavingIds((prev) => new Set(prev).add(testIdStr));
+    try {
+      if (parsedVal === null || Number.isNaN(parsedVal)) {
+        // Clear/reset to default
+        if (customRateMap.has(testIdStr)) {
+          await deleteRateMutation.mutateAsync({
+            subAccountId: subAccount.id,
+            testId: test.id,
+          });
+          toast.success(`Reset to default for ${test.name}`);
+        }
+        setLocalRates((prev) => {
+          const next = { ...prev };
+          delete next[testIdStr];
+          return next;
+        });
+      } else {
+        await setRateMutation.mutateAsync({
+          subAccountId: subAccount.id,
+          testId: test.id,
+          b2bRate: parsedVal,
+        });
+        toast.success(`Custom rate saved for ${test.name}`);
+      }
+    } catch {
+      toast.error(`Failed to save rate for ${test.name}`);
+    } finally {
+      setSavingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(testIdStr);
+        return next;
+      });
+    }
+  };
+
+  const handleResetRate = async (test: PathologyTest) => {
+    const testIdStr = String(test.id);
+    setSavingIds((prev) => new Set(prev).add(testIdStr));
+    try {
+      await deleteRateMutation.mutateAsync({
+        subAccountId: subAccount.id,
+        testId: test.id,
+      });
+      setLocalRates((prev) => {
+        const next = { ...prev };
+        delete next[testIdStr];
+        return next;
+      });
+      toast.success(`Reset to default for ${test.name}`);
+    } catch {
+      toast.error(`Failed to reset rate for ${test.name}`);
+    } finally {
+      setSavingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(testIdStr);
+        return next;
+      });
+    }
+  };
+
+  const handleResetAll = async () => {
+    if (customRates.length === 0) {
+      toast.info("No custom rates to reset");
+      return;
+    }
+    try {
+      await Promise.all(
+        customRates.map((r) =>
+          deleteRateMutation.mutateAsync({
+            subAccountId: subAccount.id,
+            testId: r.testId,
+          }),
+        ),
+      );
+      setLocalRates({});
+      toast.success("All custom rates reset to default");
+    } catch {
+      toast.error("Failed to reset all rates");
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
+        <DialogHeader className="flex-shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 bg-[oklch(0.88_0.06_175)] rounded-full flex items-center justify-center">
+              <span className="text-[oklch(0.35_0.1_185)] font-bold">
+                {subAccount.name.charAt(0).toUpperCase()}
+              </span>
+            </div>
+            <div>
+              <DialogTitle className="font-fraunces text-[oklch(0.25_0.06_215)]">
+                B2B Rates for {subAccount.name}
+              </DialogTitle>
+              <p className="text-xs text-[oklch(0.55_0.025_215)] mt-0.5">
+                Set custom B2B rates for this subaccount. Leave blank to use the
+                default rate.
+              </p>
+            </div>
+            {customRates.length > 0 && (
+              <Badge className="ml-auto bg-[oklch(0.91_0.08_50)] text-[oklch(0.38_0.14_50)] border border-[oklch(0.82_0.1_50)] hover:bg-[oklch(0.91_0.08_50)]">
+                <Star className="w-3 h-3 mr-1 fill-current" />
+                {customRates.length} custom
+              </Badge>
+            )}
+          </div>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-y-auto min-h-0">
+          {ratesLoading ? (
+            <div className="space-y-3 p-1">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Skeleton
+                  // biome-ignore lint/suspicious/noArrayIndexKey: static skeletons
+                  key={`rate-skel-${i}`}
+                  className="h-12 w-full rounded-lg"
+                />
+              ))}
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-[oklch(0.96_0.01_215)] hover:bg-[oklch(0.96_0.01_215)]">
+                  <TableHead className="font-semibold text-[oklch(0.3_0.05_215)] pl-4">
+                    Test Name
+                  </TableHead>
+                  <TableHead className="font-semibold text-[oklch(0.3_0.05_215)]">
+                    Category
+                  </TableHead>
+                  <TableHead className="font-semibold text-[oklch(0.3_0.05_215)] text-right">
+                    MRP
+                  </TableHead>
+                  <TableHead className="font-semibold text-[oklch(0.3_0.05_215)] text-right">
+                    Default B2B
+                  </TableHead>
+                  <TableHead className="font-semibold text-[oklch(0.3_0.05_215)] text-right w-44">
+                    Custom B2B Rate
+                  </TableHead>
+                  <TableHead className="font-semibold text-[oklch(0.3_0.05_215)] text-right w-28 pr-4">
+                    Actions
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {tests.map((test) => {
+                  const testIdStr = String(test.id);
+                  const hasCustom = customRateMap.has(testIdStr);
+                  const currentCustom = customRateMap.get(testIdStr);
+                  const isSaving = savingIds.has(testIdStr);
+                  const inputVal = localRates[testIdStr] ?? "";
+                  const isDirty =
+                    inputVal !==
+                    (currentCustom !== undefined ? String(currentCustom) : "");
+
+                  return (
+                    <TableRow
+                      key={testIdStr}
+                      className={`border-b border-[oklch(0.93_0.01_215)] ${hasCustom ? "bg-[oklch(0.97_0.03_50)]" : ""}`}
+                    >
+                      <TableCell className="pl-4 py-3">
+                        <div className="flex items-center gap-2">
+                          {hasCustom && (
+                            <Star className="w-3 h-3 text-[oklch(0.55_0.14_50)] fill-current flex-shrink-0" />
+                          )}
+                          <span className="font-medium text-[oklch(0.25_0.06_215)] text-sm">
+                            {test.name}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-3">
+                        <span
+                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${getCategoryClass(test.category)}`}
+                        >
+                          {test.category}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right py-3 font-mono text-sm text-[oklch(0.35_0.1_205)] font-semibold">
+                        {formatCurrency(test.mrp)}
+                      </TableCell>
+                      <TableCell className="text-right py-3 font-mono text-sm text-[oklch(0.4_0.12_160)] font-semibold">
+                        {formatCurrency(test.b2bRate)}
+                      </TableCell>
+                      <TableCell className="text-right py-3 pr-2">
+                        <div className="flex items-center justify-end">
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={inputVal}
+                            onChange={(e) =>
+                              setLocalRates((prev) => ({
+                                ...prev,
+                                [testIdStr]: e.target.value,
+                              }))
+                            }
+                            placeholder={formatCurrency(test.b2bRate)}
+                            className={`w-32 text-right font-mono text-sm h-8 ${hasCustom ? "border-[oklch(0.75_0.1_50)] bg-[oklch(0.97_0.04_50)]" : "border-[oklch(0.82_0.04_200)]"}`}
+                          />
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right py-3 pr-4">
+                        <div className="flex items-center justify-end gap-1">
+                          {isDirty && (
+                            <Button
+                              size="sm"
+                              onClick={() => handleSaveRate(test)}
+                              disabled={isSaving}
+                              className="h-7 px-2 text-xs bg-[oklch(0.38_0.1_210)] hover:bg-[oklch(0.32_0.1_210)] text-white"
+                            >
+                              {isSaving ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <Check className="h-3 w-3" />
+                              )}
+                            </Button>
+                          )}
+                          {hasCustom && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleResetRate(test)}
+                              disabled={isSaving}
+                              className="h-7 px-2 text-xs text-[oklch(0.55_0.2_25)] hover:bg-[oklch(0.96_0.04_25)] hover:text-[oklch(0.45_0.22_25)]"
+                              title="Reset to default"
+                            >
+                              <RotateCcw className="h-3 w-3" />
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
+        </div>
+
+        <DialogFooter className="flex-shrink-0 border-t border-[oklch(0.9_0.01_215)] pt-4 mt-2">
+          <div className="flex items-center justify-between w-full">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleResetAll}
+              disabled={
+                customRates.length === 0 || deleteRateMutation.isPending
+              }
+              className="border-[oklch(0.82_0.08_25)] text-[oklch(0.55_0.2_25)] hover:bg-[oklch(0.96_0.04_25)] hover:border-[oklch(0.55_0.2_25)]"
+            >
+              <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+              Reset All to Default
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              className="border-[oklch(0.82_0.04_200)]"
+            >
+              Close
+            </Button>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 interface TestFormValues {
@@ -328,6 +652,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const updateTestMutation = useUpdatePathologyTest(token);
   const deleteTestMutation = useDeletePathologyTest(token);
   const createSubAccountMutation = useCreateSubAccount(token);
+  const updateSubAccountMutation = useUpdateSubAccount(token);
   const deleteSubAccountMutation = useDeleteSubAccount(token);
   const logoutMutation = useAdminLogout();
   const addSampleData = useAddSampleData();
@@ -340,8 +665,16 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const [deleteTestId, setDeleteTestId] = useState<bigint | null>(null);
   const [deleteSubId, setDeleteSubId] = useState<bigint | null>(null);
   const [newSubAccountName, setNewSubAccountName] = useState("");
+  const [newSubAccountPhone, setNewSubAccountPhone] = useState("");
+  const [editingSubAccount, setEditingSubAccount] = useState<SubAccount | null>(
+    null,
+  );
+  const [editSubName, setEditSubName] = useState("");
+  const [editSubPhone, setEditSubPhone] = useState("");
   const [sampleDataLoaded, setSampleDataLoaded] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [ratesDialogSubAccount, setRatesDialogSubAccount] =
+    useState<SubAccount | null>(null);
 
   // Seed sample data if tests list is empty
   // biome-ignore lint/correctness/useExhaustiveDependencies: addSampleData mutation is intentionally omitted
@@ -360,6 +693,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
         const serializable = subaccounts.map((s) => ({
           id: String(s.id),
           name: s.name,
+          phone: s.phone,
         }));
         localStorage.setItem(
           SUBACCOUNTS_CACHE_KEY,
@@ -427,7 +761,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const selectedTests = tests.filter((t) => selectedIds.has(String(t.id)));
   const totalMrp = selectedTests.reduce((sum, t) => sum + t.mrp, 0);
   const totalB2b = selectedTests.reduce((sum, t) => sum + t.b2bRate, 0);
-  const grandTotal = totalMrp + totalB2b;
+  const grandTotal = totalMrp - totalB2b;
 
   // Add test form
   const openAddTest = () => {
@@ -516,11 +850,46 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
       return;
     }
     try {
-      await createSubAccountMutation.mutateAsync(newSubAccountName.trim());
+      await createSubAccountMutation.mutateAsync({
+        name: newSubAccountName.trim(),
+        phone: newSubAccountPhone.trim(),
+      });
       toast.success(`Subaccount "${newSubAccountName.trim()}" created`);
       setNewSubAccountName("");
+      setNewSubAccountPhone("");
     } catch {
       toast.error("Failed to create subaccount");
+    }
+  };
+
+  const handleUpdateSubAccount = async () => {
+    if (!editingSubAccount) return;
+    if (!editSubName.trim()) {
+      toast.error("Subaccount name is required");
+      return;
+    }
+    try {
+      await updateSubAccountMutation.mutateAsync({
+        id: editingSubAccount.id,
+        name: editSubName.trim(),
+        phone: editSubPhone.trim(),
+      });
+      toast.success("Subaccount updated");
+      setEditingSubAccount(null);
+      // Update localStorage cache
+      const updated = subaccounts.map((s) =>
+        s.id === editingSubAccount.id
+          ? { ...s, name: editSubName.trim(), phone: editSubPhone.trim() }
+          : s,
+      );
+      const serializable = updated.map((s) => ({
+        id: String(s.id),
+        name: s.name,
+        phone: s.phone,
+      }));
+      localStorage.setItem(SUBACCOUNTS_CACHE_KEY, JSON.stringify(serializable));
+    } catch {
+      toast.error("Failed to update subaccount");
     }
   };
 
@@ -535,6 +904,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
       const serializable = remaining.map((s) => ({
         id: String(s.id),
         name: s.name,
+        phone: s.phone,
       }));
       localStorage.setItem(SUBACCOUNTS_CACHE_KEY, JSON.stringify(serializable));
     } catch {
@@ -816,7 +1186,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                           B2B Rate
                         </TableHead>
                         <TableHead className="font-semibold text-[oklch(0.3_0.05_215)] text-right">
-                          Total
+                          Margin
                         </TableHead>
                         <TableHead className="font-semibold text-[oklch(0.3_0.05_215)] text-right pr-6">
                           Actions
@@ -907,7 +1277,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                                 {formatCurrency(test.b2bRate)}
                               </TableCell>
                               <TableCell className="text-right py-3 font-mono text-[oklch(0.32_0.1_270)] font-bold">
-                                {formatCurrency(test.mrp + test.b2bRate)}
+                                {formatCurrency(test.mrp - test.b2bRate)}
                               </TableCell>
                               <TableCell
                                 className="text-right py-3 pr-6"
@@ -981,7 +1351,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                             <div className="w-px h-4 bg-[oklch(0.78_0.06_270)]" />
                             <div className="bg-[oklch(0.32_0.1_270)] text-white px-4 py-1.5 rounded-lg">
                               <span className="text-xs text-white/70 mr-1">
-                                Grand Total:
+                                Total Margin:
                               </span>
                               <span className="font-mono font-bold">
                                 {formatCurrency(grandTotal)}
@@ -1031,6 +1401,23 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                         onChange={(e) => setNewSubAccountName(e.target.value)}
                         placeholder="e.g., City Hospital"
                       />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="sub-phone">Phone Number</Label>
+                      <div className="relative">
+                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[oklch(0.55_0.025_215)]" />
+                        <Input
+                          id="sub-phone"
+                          type="tel"
+                          value={newSubAccountPhone}
+                          onChange={(e) =>
+                            setNewSubAccountPhone(e.target.value)
+                          }
+                          placeholder="e.g. 9876543210"
+                          className="pl-9"
+                          autoComplete="tel"
+                        />
+                      </div>
                     </div>
                     <Button
                       type="submit"
@@ -1105,19 +1492,45 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                                   <div className="font-medium text-[oklch(0.25_0.06_215)]">
                                     {sub.name}
                                   </div>
-                                  <div className="text-xs text-[oklch(0.6_0.025_215)]">
-                                    No auth required · Read-only access
+                                  <div className="flex items-center gap-1.5 text-xs text-[oklch(0.6_0.025_215)]">
+                                    <Phone className="w-3 h-3" />
+                                    <span>
+                                      {sub.phone ? sub.phone : "No phone set"}
+                                    </span>
                                   </div>
                                 </div>
                               </div>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setDeleteSubId(sub.id)}
-                                className="text-[oklch(0.55_0.2_25)] hover:bg-[oklch(0.96_0.04_25)] hover:text-[oklch(0.45_0.22_25)]"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
+                              <div className="flex items-center gap-1.5">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setRatesDialogSubAccount(sub)}
+                                  className="text-[oklch(0.45_0.12_60)] hover:bg-[oklch(0.93_0.06_60)] hover:text-[oklch(0.35_0.12_60)]"
+                                  title="Set B2B Rates"
+                                >
+                                  <Tag className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setEditingSubAccount(sub);
+                                    setEditSubName(sub.name);
+                                    setEditSubPhone(sub.phone || "");
+                                  }}
+                                  className="text-[oklch(0.38_0.1_210)] hover:bg-[oklch(0.92_0.05_200)] hover:text-[oklch(0.25_0.1_210)]"
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setDeleteSubId(sub.id)}
+                                  className="text-[oklch(0.55_0.2_25)] hover:bg-[oklch(0.96_0.04_25)] hover:text-[oklch(0.45_0.22_25)]"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
                             </motion.div>
                           ))}
                         </AnimatePresence>
@@ -1199,6 +1612,17 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* SubAccount B2B Rates Dialog */}
+      {ratesDialogSubAccount && (
+        <SubAccountRatesDialog
+          open={!!ratesDialogSubAccount}
+          onOpenChange={(v) => !v && setRatesDialogSubAccount(null)}
+          subAccount={ratesDialogSubAccount}
+          tests={tests}
+          sessionToken={token}
+        />
+      )}
+
       {/* Delete SubAccount Confirmation */}
       <AlertDialog
         open={deleteSubId !== null}
@@ -1228,6 +1652,69 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Edit Subaccount Dialog */}
+      <Dialog
+        open={!!editingSubAccount}
+        onOpenChange={(open) => !open && setEditingSubAccount(null)}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-fraunces text-[oklch(0.25_0.06_215)]">
+              Edit Subaccount
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="space-y-2">
+              <Label htmlFor="edit-sub-name">Name</Label>
+              <Input
+                id="edit-sub-name"
+                value={editSubName}
+                onChange={(e) => setEditSubName(e.target.value)}
+                placeholder="e.g., City Hospital"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-sub-phone">Phone Number</Label>
+              <div className="relative">
+                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[oklch(0.55_0.025_215)]" />
+                <Input
+                  id="edit-sub-phone"
+                  type="tel"
+                  value={editSubPhone}
+                  onChange={(e) => setEditSubPhone(e.target.value)}
+                  placeholder="e.g. 9876543210"
+                  className="pl-9"
+                  autoComplete="tel"
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setEditingSubAccount(null)}
+              className="border-[oklch(0.82_0.04_200)]"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleUpdateSubAccount}
+              disabled={updateSubAccountMutation.isPending}
+              className="bg-[oklch(0.38_0.1_210)] hover:bg-[oklch(0.32_0.1_210)] text-white"
+            >
+              {updateSubAccountMutation.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Check className="mr-2 h-4 w-4" />
+              )}
+              {updateSubAccountMutation.isPending
+                ? "Saving..."
+                : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Footer */}
       <footer className="mt-16 py-6 border-t border-[oklch(0.88_0.02_200)] text-center">

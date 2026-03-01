@@ -1,30 +1,37 @@
 # Pathology Rate Manager
 
 ## Current State
-- Admin login with hardcoded username "Arit" / password "12345"
-- No forgot password flow exists on the login page
-- Backend has a fixed `adminPassword` variable; no SMS/email service is integrated
-- HomePage, AdminDashboard, SubaccountView are the three main pages
-- Motion animations on every table row cause perceived slowness
-- No lazy loading; all pages are eagerly imported
+- Admin can manage pathology tests with global MRP and B2B rates
+- Admin can create/edit/delete subaccounts (name + phone)
+- Subaccounts view tests with the same global B2B rates for all subaccounts
+- No per-subaccount B2B rate customization exists
+- Tests have: id, name, category, mrp, b2bRate (global)
 
 ## Requested Changes (Diff)
 
 ### Add
-- **Forgot Password flow on the login page**: A "Forgot Password?" link under the password field opens a modal/step flow where the admin enters their registered mobile number. Since there is no SMS backend, the verification is done client-side using a pre-stored mobile number. The admin must first set their mobile number from the Admin Dashboard (stored in localStorage). If the mobile number matches the stored one, they are allowed to set a new password. The new password is saved to localStorage and used for subsequent logins (overrides the default "12345"). If no mobile number has been registered yet, show a prompt telling the admin to first set it in the dashboard settings.
-- **Mobile number setting in Admin Dashboard**: Add a "Settings" tab (or a settings card inside the existing tabs) where the admin can enter/update their mobile number (used for forgot password) and also optionally change their password. Both are stored in localStorage.
+- **Per-subaccount B2B rates**: Admin can override B2B rate for each test per subaccount
+- **Default B2B rates**: The existing global `b2bRate` on each test acts as the default; per-subaccount overrides layer on top
+- **Backend**: New `subAccountRates` store mapping `(subAccountId, testId) -> Float` for B2B rate overrides
+- **Backend APIs**:
+  - `setSubAccountTestRate(sessionToken, subAccountId, testId, b2bRate)` — set a custom B2B rate for a test in a specific subaccount
+  - `deleteSubAccountTestRate(sessionToken, subAccountId, testId)` — remove the custom rate, falling back to default
+  - `getSubAccountRates(subAccountId)` — returns all custom rate overrides for a subaccount (public, no auth)
+- **Admin UI**: In the Subaccounts tab, each subaccount card has a "Set Rates" button that opens a dialog showing all tests with their current effective B2B rate and input to override per test. Shows whether rate is "custom" or "default". A "Reset to Default" option per test row. Also bulk "Reset All to Default" button.
+- **Subaccount view**: Fetches `getSubAccountRates` for its own ID on load; uses subaccount-specific B2B rate if available, otherwise uses the global default. The displayed B2B rate reflects the subaccount-specific value.
 
 ### Modify
-- **Performance**: Reduce or virtualize row animations -- use a single fade-in for the whole table body rather than per-row staggered animations. Lazy-load page components using React.lazy + Suspense.
-- **Login page**: Add "Forgot Password?" link below the password input.
+- `SubaccountView` component: receives `subaccountId` prop, fetches custom rates, merges with global rates before display
+- Admin Subaccounts tab: each subaccount list item shows a "Set Rates" button alongside existing Edit/Delete
+- `HomePage`: pass `subaccountId` when navigating to subaccount view (already has id from cache)
 
 ### Remove
-- Per-row staggered `motion.tr` animations in AdminDashboard and SubaccountView (replace with a single container fade).
+- Nothing removed
 
 ## Implementation Plan
-1. Add a `useAdminSettings` hook / utility (localStorage-based) to read/write: `adminMobileNumber`, `adminPasswordOverride`.
-2. Modify `HomePage.tsx`: add "Forgot Password?" link; add a `ForgotPasswordModal` component with two steps: (a) enter mobile number, (b) if it matches stored number, set new password. Show error if no mobile number is registered.
-3. Modify `AdminDashboard.tsx`: add a Settings section (new tab or card) with fields to set mobile number and change password, with Save buttons.
-4. Modify `AdminDashboard.tsx` and `SubaccountView.tsx`: replace staggered per-row `motion.tr` with a single wrapper fade animation on the table body.
-5. Modify `App.tsx` (or wherever pages are imported): use `React.lazy` + `Suspense` for AdminDashboard and SubaccountView.
-6. Modify login handler in `HomePage.tsx` to check `adminPasswordOverride` in localStorage first before comparing against the hardcoded "12345".
+1. Update `main.mo`: add `subAccountRates` Map, add `setSubAccountTestRate`, `deleteSubAccountTestRate`, `getSubAccountRates` functions
+2. Update `backend.d.ts` to expose new functions
+3. Add new hooks in `useQueries.ts`: `useGetSubAccountRates`, `useSetSubAccountTestRate`, `useDeleteSubAccountTestRate`
+4. Update `SubaccountView` to accept `subaccountId`, fetch overrides, merge B2B rates before rendering
+5. Update `HomePage` to pass `subaccountId` to `SubaccountView`
+6. Add "Set Rates" dialog in `AdminDashboard` Subaccounts tab showing all tests with override inputs

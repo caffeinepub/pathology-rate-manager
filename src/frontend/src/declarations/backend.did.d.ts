@@ -17,7 +17,12 @@ export interface PathologyTest {
   'b2bRate' : number,
   'category' : string,
 }
-export interface SubAccount { 'id' : bigint, 'name' : string }
+export interface SubAccount { 'id' : bigint, 'name' : string, 'phone' : string }
+export interface SubAccountRate {
+  'b2bRate' : number,
+  'testId' : bigint,
+  'subAccountId' : bigint,
+}
 export interface _SERVICE {
   'addPathologyTest' : ActorMethod<
     [string, string, string, number, number],
@@ -26,19 +31,29 @@ export interface _SERVICE {
   'addSampleData' : ActorMethod<[], undefined>,
   'adminLogin' : ActorMethod<[string, string], string>,
   'adminLogout' : ActorMethod<[], undefined>,
-  'createSubAccount' : ActorMethod<[string, string], bigint>,
+  'createSubAccount' : ActorMethod<[string, string, string], bigint>,
   'deletePathologyTest' : ActorMethod<[string, bigint], undefined>,
   'deleteSubAccount' : ActorMethod<[string, bigint], undefined>,
+  'deleteSubAccountTestRate' : ActorMethod<[string, bigint, bigint], undefined>,
   'getAllSubAccounts' : ActorMethod<[string], Array<SubAccount>>,
   'getAllTests' : ActorMethod<[], Array<PathologyTest>>,
   'getB2BTests' : ActorMethod<[], Array<PathologyTest>>,
+  'getSubAccountRates' : ActorMethod<[bigint], Array<SubAccountRate>>,
   'getTestByCategory' : ActorMethod<[string], Array<PathologyTest>>,
   'getTotalSubAccountCount' : ActorMethod<[], bigint>,
   'getTotalTestCount' : ActorMethod<[], bigint>,
+  /**
+   * / NEW FUNCTIONALITY
+   */
+  'setSubAccountTestRate' : ActorMethod<
+    [string, bigint, bigint, number],
+    undefined
+  >,
   'updatePathologyTest' : ActorMethod<
     [string, bigint, string, string, number, number],
     undefined
   >,
+  'updateSubAccount' : ActorMethod<[string, bigint, string, string], undefined>,
 }
 export declare const idlService: IDL.ServiceClass;
 export declare const idlInitArgs: IDL.Type[];

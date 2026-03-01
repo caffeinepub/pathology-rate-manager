@@ -1,5 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { PathologyTest, SubAccount } from "../backend.d.ts";
+import type {
+  PathologyTest,
+  SubAccount,
+  SubAccountRate,
+} from "../backend.d.ts";
 import { useActor } from "./useActor";
 
 export function useGetAllTests() {
@@ -142,9 +146,27 @@ export function useCreateSubAccount(sessionToken: string) {
   const { actor } = useActor();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (name: string) => {
+    mutationFn: async ({ name, phone }: { name: string; phone: string }) => {
       if (!actor) throw new Error("No actor");
-      return actor.createSubAccount(sessionToken, name);
+      return actor.createSubAccount(sessionToken, name, phone);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["subaccounts"] });
+    },
+  });
+}
+
+export function useUpdateSubAccount(sessionToken: string) {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      name,
+      phone,
+    }: { id: bigint; name: string; phone: string }) => {
+      if (!actor) throw new Error("No actor");
+      return actor.updateSubAccount(sessionToken, id, name, phone);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["subaccounts"] });
@@ -162,6 +184,71 @@ export function useDeleteSubAccount(sessionToken: string) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["subaccounts"] });
+    },
+  });
+}
+
+// ─── SubAccount Rate Hooks ────────────────────────────────────────────────────
+
+export function useGetSubAccountRates(subAccountId: bigint | null) {
+  const { actor, isFetching } = useActor();
+  return useQuery<SubAccountRate[]>({
+    queryKey: ["subAccountRates", String(subAccountId)],
+    queryFn: async () => {
+      if (!actor || subAccountId === null) return [];
+      return actor.getSubAccountRates(subAccountId);
+    },
+    enabled: !!actor && !isFetching && subAccountId !== null,
+  });
+}
+
+export function useSetSubAccountTestRate(sessionToken: string) {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      subAccountId,
+      testId,
+      b2bRate,
+    }: {
+      subAccountId: bigint;
+      testId: bigint;
+      b2bRate: number;
+    }) => {
+      if (!actor) throw new Error("No actor");
+      return actor.setSubAccountTestRate(
+        sessionToken,
+        subAccountId,
+        testId,
+        b2bRate,
+      );
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ["subAccountRates", String(variables.subAccountId)],
+      });
+    },
+  });
+}
+
+export function useDeleteSubAccountTestRate(sessionToken: string) {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      subAccountId,
+      testId,
+    }: {
+      subAccountId: bigint;
+      testId: bigint;
+    }) => {
+      if (!actor) throw new Error("No actor");
+      return actor.deleteSubAccountTestRate(sessionToken, subAccountId, testId);
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ["subAccountRates", String(variables.subAccountId)],
+      });
     },
   });
 }

@@ -10,7 +10,7 @@ const SubaccountView = lazy(() => import("./pages/SubaccountView"));
 type View =
   | { type: "home" }
   | { type: "admin" }
-  | { type: "subaccount"; name: string };
+  | { type: "subaccount"; id: string; name: string; phone: string };
 
 function PageLoader() {
   return (
@@ -32,8 +32,8 @@ export default function App() {
           {view.type === "home" && (
             <HomePage
               onAdminLogin={() => navigate({ type: "admin" })}
-              onSelectSubaccount={(name) =>
-                navigate({ type: "subaccount", name })
+              onSelectSubaccount={(id, name, phone) =>
+                navigate({ type: "subaccount", id, name, phone })
               }
             />
           )}
@@ -42,7 +42,9 @@ export default function App() {
           )}
           {view.type === "subaccount" && (
             <SubaccountView
+              subaccountId={BigInt(view.id)}
               subaccountName={view.name}
+              subaccountPhone={view.phone}
               onBack={() => navigate({ type: "home" })}
             />
           )}

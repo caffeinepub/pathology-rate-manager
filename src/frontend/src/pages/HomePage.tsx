@@ -28,7 +28,6 @@ import {
 import { motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import type { SubAccount } from "../backend.d.ts";
 import { useAuth } from "../context/AuthContext";
 import { SUBACCOUNTS_CACHE_KEY } from "../context/AuthContext";
 import { useAdminLogin } from "../hooks/useQueries";
@@ -40,7 +39,7 @@ import {
 
 interface HomePageProps {
   onAdminLogin: () => void;
-  onSelectSubaccount: (name: string) => void;
+  onSelectSubaccount: (id: string, name: string, phone: string) => void;
 }
 
 // ─── Forgot Password Modal ────────────────────────────────────────────────────
@@ -235,8 +234,10 @@ export default function HomePage({
   const { setSessionToken, sessionToken, isAdmin } = useAuth();
   const loginMutation = useAdminLogin();
 
-  // Cached subaccounts from localStorage
-  const [cachedSubaccounts, setCachedSubaccounts] = useState<SubAccount[]>([]);
+  // Cached subaccounts from localStorage (phone may be absent on older cache entries)
+  const [cachedSubaccounts, setCachedSubaccounts] = useState<
+    Array<{ id: string; name: string; phone?: string }>
+  >([]);
 
   useEffect(() => {
     try {
@@ -479,7 +480,13 @@ export default function HomePage({
                         <motion.button
                           key={String(sub.id)}
                           whileHover={{ x: 4 }}
-                          onClick={() => onSelectSubaccount(sub.name)}
+                          onClick={() =>
+                            onSelectSubaccount(
+                              sub.id,
+                              sub.name,
+                              sub.phone || "",
+                            )
+                          }
                           className="w-full flex items-center justify-between px-4 py-3 rounded-lg border border-[oklch(0.88_0.04_200)] hover:border-[oklch(0.55_0.12_175)] hover:bg-[oklch(0.96_0.02_185)] transition-all text-left group"
                         >
                           <div className="flex items-center gap-3">

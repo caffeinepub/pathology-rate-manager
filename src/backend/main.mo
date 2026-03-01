@@ -6,7 +6,9 @@ import Runtime "mo:core/Runtime";
 import Iter "mo:core/Iter";
 import Array "mo:core/Array";
 import Order "mo:core/Order";
+import Migration "migration";
 
+(with migration = Migration.run)
 actor {
   type PathologyTest = {
     id : Nat;
@@ -28,6 +30,7 @@ actor {
   type SubAccount = {
     id : Nat;
     name : Text;
+    phone : Text;
   };
 
   module SubAccount {
@@ -36,8 +39,16 @@ actor {
     };
   };
 
+  type SubAccountRate = {
+    subAccountId : Nat;
+    testId : Nat;
+    b2bRate : Float;
+  };
+
   let testStore = Map.empty<Nat, PathologyTest>();
   let subAccountStore = Map.empty<Nat, SubAccount>();
+  let subAccountRates = Map.empty<Text, SubAccountRate>();
+
   var nextTestId = 1;
   var nextSubAccountId = 1;
   let adminUsername = "Arit";
@@ -116,17 +127,52 @@ actor {
       Runtime.trap("Test not found");
     };
     testStore.remove(id);
+
+    var keysToRemove : [Text] = [];
+    for ((key, rate) in subAccountRates.entries()) {
+      if (rate.testId == id) {
+        keysToRemove := keysToRemove.concat([key]);
+      };
+    };
+    for (key in keysToRemove.values()) {
+      subAccountRates.remove(key);
+    };
   };
 
-  public shared ({ caller }) func createSubAccount(sessionToken : Text, name : Text) : async Nat {
+  public shared ({ caller }) func createSubAccount(
+    sessionToken : Text,
+    name : Text,
+    phone : Text,
+  ) : async Nat {
     validateAdminSession(sessionToken);
     let subAccount : SubAccount = {
       id = nextSubAccountId;
       name;
+      phone;
     };
     subAccountStore.add(nextSubAccountId, subAccount);
     nextSubAccountId += 1;
     subAccount.id;
+  };
+
+  public shared ({ caller }) func updateSubAccount(
+    sessionToken : Text,
+    id : Nat,
+    name : Text,
+    phone : Text,
+  ) : async () {
+    validateAdminSession(sessionToken);
+    switch (subAccountStore.get(id)) {
+      case (null) { Runtime.trap("Subaccount not found") };
+      case (?_) {
+        let updatedSubAccount : SubAccount = {
+          id;
+          name;
+          phone;
+        };
+        subAccountStore.add(id, updatedSubAccount);
+      };
+    };
   };
 
   public shared ({ caller }) func deleteSubAccount(sessionToken : Text, id : Nat) : async () {
@@ -135,6 +181,16 @@ actor {
       Runtime.trap("Subaccount not found");
     };
     subAccountStore.remove(id);
+
+    var keysToRemove : [Text] = [];
+    for ((key, rate) in subAccountRates.entries()) {
+      if (rate.subAccountId == id) {
+        keysToRemove := keysToRemove.concat([key]);
+      };
+    };
+    for (key in keysToRemove.values()) {
+      subAccountRates.remove(key);
+    };
   };
 
   public query ({ caller }) func getAllTests() : async [PathologyTest] {
@@ -276,5 +332,51 @@ actor {
 
   public query ({ caller }) func getTotalSubAccountCount() : async Nat {
     subAccountStore.size();
+  };
+
+  /// NEW FUNCTIONALITY
+  public shared ({ caller }) func setSubAccountTestRate(
+    sessionToken : Text,
+    subAccountId : Nat,
+    testId : Nat,
+    b2bRate : Float,
+  ) : async () {
+    validateAdminSession(sessionToken);
+
+    if (not subAccountStore.containsKey(subAccountId)) {
+      Runtime.trap("Subaccount does not exist");
+    };
+
+    if (not testStore.containsKey(testId)) {
+      Runtime.trap("Test does not exist");
+    };
+
+    let rate : SubAccountRate = {
+      subAccountId;
+      testId;
+      b2bRate;
+    };
+    let key = subAccountId.toText() # ":" # testId.toText();
+    subAccountRates.add(key, rate);
+  };
+
+  public shared ({ caller }) func deleteSubAccountTestRate(
+    sessionToken : Text,
+    subAccountId : Nat,
+    testId : Nat,
+  ) : async () {
+    validateAdminSession(sessionToken);
+    let key = subAccountId.toText() # ":" # testId.toText();
+    if (not subAccountRates.containsKey(key)) {
+      Runtime.trap("Rate override does not exist");
+    };
+    subAccountRates.remove(key);
+  };
+
+  public query ({ caller }) func getSubAccountRates(subAccountId : Nat) : async [SubAccountRate] {
+    let filtered = subAccountRates.values().toArray().filter(
+      func(rate) { rate.subAccountId == subAccountId }
+    );
+    filtered;
   };
 };

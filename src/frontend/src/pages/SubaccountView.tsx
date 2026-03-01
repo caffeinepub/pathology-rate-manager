@@ -1,3 +1,4 @@
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -24,16 +25,19 @@ import {
   Calculator,
   FlaskConical,
   Search,
+  Star,
   TestTube,
   X,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import type { PathologyTest } from "../backend.d.ts";
-import { useGetAllTests } from "../hooks/useQueries";
+import { useGetAllTests, useGetSubAccountRates } from "../hooks/useQueries";
 
 interface SubaccountViewProps {
+  subaccountId: bigint;
   subaccountName: string;
+  subaccountPhone?: string;
   onBack: () => void;
 }
 
@@ -68,13 +72,31 @@ function formatCurrency(val: number): string {
 }
 
 export default function SubaccountView({
+  subaccountId,
   subaccountName,
+  subaccountPhone,
   onBack,
 }: SubaccountViewProps) {
   const { data: tests = [], isLoading } = useGetAllTests();
+  const { data: customRates = [] } = useGetSubAccountRates(subaccountId);
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // Build a map from testId (as string) -> custom b2bRate
+  const customRateMap = new Map<string, number>(
+    customRates.map((r) => [String(r.testId), r.b2bRate]),
+  );
+
+  // Get effective B2B rate for a test (custom if available, otherwise default)
+  const getEffectiveB2bRate = (test: PathologyTest): number => {
+    const custom = customRateMap.get(String(test.id));
+    return custom !== undefined ? custom : test.b2bRate;
+  };
+
+  const isCustomRate = (test: PathologyTest): boolean => {
+    return customRateMap.has(String(test.id));
+  };
 
   const categories = Array.from(
     new Set(tests.map((t: PathologyTest) => t.category)),
@@ -131,10 +153,11 @@ export default function SubaccountView({
     0,
   );
   const totalB2b = selectedTests.reduce(
-    (sum: number, t: PathologyTest) => sum + t.b2bRate,
+    (sum: number, t: PathologyTest) => sum + getEffectiveB2bRate(t),
     0,
   );
-  const grandTotal = totalMrp + totalB2b;
+  const grandTotal = totalMrp - totalB2b;
+  const customRateCount = customRates.length;
 
   return (
     <div className="min-h-screen bg-background">
@@ -192,6 +215,11 @@ export default function SubaccountView({
                 <p className="text-white/70 text-sm">
                   Authorized Rate Card Access
                 </p>
+                {subaccountPhone && (
+                  <span className="text-white/70 text-sm">
+                    📞 {subaccountPhone}
+                  </span>
+                )}
               </div>
             </div>
           </motion.div>
@@ -210,6 +238,12 @@ export default function SubaccountView({
                 categories
               </span>
             </div>
+            {customRateCount > 0 && (
+              <div className="flex items-center gap-1.5 bg-[oklch(0.75_0.14_50)] text-[oklch(0.2_0.08_50)] px-3 py-1 rounded-full text-xs font-semibold">
+                <Star className="w-3 h-3 fill-current" />
+                {customRateCount} custom rate{customRateCount > 1 ? "s" : ""}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -293,7 +327,7 @@ export default function SubaccountView({
                       B2B Rate
                     </TableHead>
                     <TableHead className="text-white font-semibold text-right py-3 pr-6">
-                      Total
+                      Margin
                     </TableHead>
                   </TableRow>
                 </TableHeader>
@@ -375,12 +409,28 @@ export default function SubaccountView({
                             {formatCurrency(test.mrp)}
                           </TableCell>
                           <TableCell className="text-right py-3.5">
-                            <div className="inline-flex items-center gap-1.5 bg-[oklch(0.92_0.07_160)] text-[oklch(0.35_0.12_160)] px-2.5 py-1 rounded-md font-mono font-semibold text-sm">
-                              {formatCurrency(test.b2bRate)}
+                            <div className="inline-flex items-center gap-1.5">
+                              {isCustomRate(test) ? (
+                                <div className="flex flex-col items-end gap-0.5">
+                                  <div className="inline-flex items-center gap-1 bg-[oklch(0.91_0.08_50)] text-[oklch(0.38_0.14_50)] px-2.5 py-1 rounded-md font-mono font-semibold text-sm border border-[oklch(0.82_0.1_50)]">
+                                    <Star className="w-3 h-3 fill-current" />
+                                    {formatCurrency(getEffectiveB2bRate(test))}
+                                  </div>
+                                  <span className="text-xs text-[oklch(0.6_0.04_215)] line-through font-mono">
+                                    {formatCurrency(test.b2bRate)}
+                                  </span>
+                                </div>
+                              ) : (
+                                <div className="inline-flex items-center gap-1.5 bg-[oklch(0.92_0.07_160)] text-[oklch(0.35_0.12_160)] px-2.5 py-1 rounded-md font-mono font-semibold text-sm">
+                                  {formatCurrency(test.b2bRate)}
+                                </div>
+                              )}
                             </div>
                           </TableCell>
                           <TableCell className="text-right py-3.5 pr-6 font-mono text-[oklch(0.32_0.1_270)] font-bold">
-                            {formatCurrency(test.mrp + test.b2bRate)}
+                            {formatCurrency(
+                              test.mrp - getEffectiveB2bRate(test),
+                            )}
                           </TableCell>
                         </tr>
                       );
@@ -429,7 +479,7 @@ export default function SubaccountView({
                         <div className="w-px h-4 bg-[oklch(0.78_0.06_270)]" />
                         <div className="bg-[oklch(0.32_0.1_270)] text-white px-4 py-1.5 rounded-lg">
                           <span className="text-xs text-white/70 mr-1">
-                            Grand Total:
+                            Total Margin:
                           </span>
                           <span className="font-mono font-bold">
                             {formatCurrency(grandTotal)}

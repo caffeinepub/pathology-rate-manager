@@ -92,6 +92,7 @@ export class ExternalBlob {
 export interface SubAccount {
     id: bigint;
     name: string;
+    phone: string;
 }
 export interface PathologyTest {
     id: bigint;
@@ -100,21 +101,33 @@ export interface PathologyTest {
     b2bRate: number;
     category: string;
 }
+export interface SubAccountRate {
+    b2bRate: number;
+    testId: bigint;
+    subAccountId: bigint;
+}
 export interface backendInterface {
     addPathologyTest(sessionToken: string, name: string, category: string, mrp: number, b2bRate: number): Promise<bigint>;
     addSampleData(): Promise<void>;
     adminLogin(username: string, password: string): Promise<string>;
     adminLogout(): Promise<void>;
-    createSubAccount(sessionToken: string, name: string): Promise<bigint>;
+    createSubAccount(sessionToken: string, name: string, phone: string): Promise<bigint>;
     deletePathologyTest(sessionToken: string, id: bigint): Promise<void>;
     deleteSubAccount(sessionToken: string, id: bigint): Promise<void>;
+    deleteSubAccountTestRate(sessionToken: string, subAccountId: bigint, testId: bigint): Promise<void>;
     getAllSubAccounts(sessionToken: string): Promise<Array<SubAccount>>;
     getAllTests(): Promise<Array<PathologyTest>>;
     getB2BTests(): Promise<Array<PathologyTest>>;
+    getSubAccountRates(subAccountId: bigint): Promise<Array<SubAccountRate>>;
     getTestByCategory(category: string): Promise<Array<PathologyTest>>;
     getTotalSubAccountCount(): Promise<bigint>;
     getTotalTestCount(): Promise<bigint>;
+    /**
+     * / NEW FUNCTIONALITY
+     */
+    setSubAccountTestRate(sessionToken: string, subAccountId: bigint, testId: bigint, b2bRate: number): Promise<void>;
     updatePathologyTest(sessionToken: string, id: bigint, name: string, category: string, mrp: number, b2bRate: number): Promise<void>;
+    updateSubAccount(sessionToken: string, id: bigint, name: string, phone: string): Promise<void>;
 }
 export class Backend implements backendInterface {
     constructor(private actor: ActorSubclass<_SERVICE>, private _uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, private _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, private processError?: (error: unknown) => never){}
@@ -174,17 +187,17 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async createSubAccount(arg0: string, arg1: string): Promise<bigint> {
+    async createSubAccount(arg0: string, arg1: string, arg2: string): Promise<bigint> {
         if (this.processError) {
             try {
-                const result = await this.actor.createSubAccount(arg0, arg1);
+                const result = await this.actor.createSubAccount(arg0, arg1, arg2);
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.createSubAccount(arg0, arg1);
+            const result = await this.actor.createSubAccount(arg0, arg1, arg2);
             return result;
         }
     }
@@ -213,6 +226,20 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor.deleteSubAccount(arg0, arg1);
+            return result;
+        }
+    }
+    async deleteSubAccountTestRate(arg0: string, arg1: bigint, arg2: bigint): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.deleteSubAccountTestRate(arg0, arg1, arg2);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.deleteSubAccountTestRate(arg0, arg1, arg2);
             return result;
         }
     }
@@ -258,6 +285,20 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async getSubAccountRates(arg0: bigint): Promise<Array<SubAccountRate>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getSubAccountRates(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getSubAccountRates(arg0);
+            return result;
+        }
+    }
     async getTestByCategory(arg0: string): Promise<Array<PathologyTest>> {
         if (this.processError) {
             try {
@@ -300,6 +341,20 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async setSubAccountTestRate(arg0: string, arg1: bigint, arg2: bigint, arg3: number): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.setSubAccountTestRate(arg0, arg1, arg2, arg3);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.setSubAccountTestRate(arg0, arg1, arg2, arg3);
+            return result;
+        }
+    }
     async updatePathologyTest(arg0: string, arg1: bigint, arg2: string, arg3: string, arg4: number, arg5: number): Promise<void> {
         if (this.processError) {
             try {
@@ -311,6 +366,20 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor.updatePathologyTest(arg0, arg1, arg2, arg3, arg4, arg5);
+            return result;
+        }
+    }
+    async updateSubAccount(arg0: string, arg1: bigint, arg2: string, arg3: string): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.updateSubAccount(arg0, arg1, arg2, arg3);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.updateSubAccount(arg0, arg1, arg2, arg3);
             return result;
         }
     }

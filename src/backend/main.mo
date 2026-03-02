@@ -6,9 +6,9 @@ import Runtime "mo:core/Runtime";
 import Iter "mo:core/Iter";
 import Array "mo:core/Array";
 import Order "mo:core/Order";
-import Migration "migration";
 
-(with migration = Migration.run)
+
+
 actor {
   type PathologyTest = {
     id : Nat;
@@ -27,10 +27,24 @@ actor {
     };
   };
 
+  type Lab = {
+    id : Nat;
+    name : Text;
+    contact : Text;
+  };
+
+  module Lab {
+    public func compare(lab1 : Lab, lab2 : Lab) : Order.Order {
+      Text.compare(lab1.name, lab2.name);
+    };
+  };
+
   type SubAccount = {
     id : Nat;
     name : Text;
     phone : Text;
+    pin : Text;
+    labId : ?Nat;
   };
 
   module SubAccount {
@@ -45,16 +59,34 @@ actor {
     b2bRate : Float;
   };
 
+  type Transaction = {
+    id : Nat;
+    subAccountId : Nat;
+    patientName : Text;
+    date : Text;
+    testIds : [Nat];
+    totalAmount : Float;
+    paidAmount : Float;
+    dueAmount : Float;
+    notes : Text;
+  };
+
   let testStore = Map.empty<Nat, PathologyTest>();
+  let labStore = Map.empty<Nat, Lab>();
   let subAccountStore = Map.empty<Nat, SubAccount>();
   let subAccountRates = Map.empty<Text, SubAccountRate>();
+  let transactionStore = Map.empty<Nat, Transaction>();
 
   var nextTestId = 1;
+  var nextLabId = 1;
   var nextSubAccountId = 1;
+  var nextTransactionId = 1;
+
   let adminUsername = "Arit";
   let adminPassword = "12345";
   var adminSession : ?Text = null;
 
+  // ADMIN AUTH
   public shared ({ caller }) func adminLogin(username : Text, password : Text) : async Text {
     if (username != adminUsername or password != adminPassword) {
       Runtime.trap("Invalid credentials. ");
@@ -77,6 +109,7 @@ actor {
     };
   };
 
+  // PATHOLOGY TESTS
   public shared ({ caller }) func addPathologyTest(
     sessionToken : Text,
     name : Text,
@@ -139,75 +172,12 @@ actor {
     };
   };
 
-  public shared ({ caller }) func createSubAccount(
-    sessionToken : Text,
-    name : Text,
-    phone : Text,
-  ) : async Nat {
-    validateAdminSession(sessionToken);
-    let subAccount : SubAccount = {
-      id = nextSubAccountId;
-      name;
-      phone;
-    };
-    subAccountStore.add(nextSubAccountId, subAccount);
-    nextSubAccountId += 1;
-    subAccount.id;
-  };
-
-  public shared ({ caller }) func updateSubAccount(
-    sessionToken : Text,
-    id : Nat,
-    name : Text,
-    phone : Text,
-  ) : async () {
-    validateAdminSession(sessionToken);
-    switch (subAccountStore.get(id)) {
-      case (null) { Runtime.trap("Subaccount not found") };
-      case (?_) {
-        let updatedSubAccount : SubAccount = {
-          id;
-          name;
-          phone;
-        };
-        subAccountStore.add(id, updatedSubAccount);
-      };
-    };
-  };
-
-  public shared ({ caller }) func deleteSubAccount(sessionToken : Text, id : Nat) : async () {
-    validateAdminSession(sessionToken);
-    if (not subAccountStore.containsKey(id)) {
-      Runtime.trap("Subaccount not found");
-    };
-    subAccountStore.remove(id);
-
-    var keysToRemove : [Text] = [];
-    for ((key, rate) in subAccountRates.entries()) {
-      if (rate.subAccountId == id) {
-        keysToRemove := keysToRemove.concat([key]);
-      };
-    };
-    for (key in keysToRemove.values()) {
-      subAccountRates.remove(key);
-    };
-  };
-
   public query ({ caller }) func getAllTests() : async [PathologyTest] {
     testStore.values().toArray().sort();
   };
 
-  public shared ({ caller }) func getAllSubAccounts(sessionToken : Text) : async [SubAccount] {
-    validateAdminSession(sessionToken);
-    subAccountStore.values().toArray().sort();
-  };
-
-  public query ({ caller }) func getB2BTests() : async [PathologyTest] {
-    testStore.values().toArray().filter(func(test) { test.b2bRate < test.mrp });
-  };
-
-  public query ({ caller }) func getTestByCategory(category : Text) : async [PathologyTest] {
-    testStore.values().toArray().filter(func(test) { test.category == category });
+  public query ({ caller }) func getTotalTestCount() : async Nat {
+    testStore.size();
   };
 
   public shared ({ caller }) func addSampleData() : async () {
@@ -326,15 +296,153 @@ actor {
     };
   };
 
-  public query ({ caller }) func getTotalTestCount() : async Nat {
-    testStore.size();
+  // LABS
+  public shared ({ caller }) func createLab(sessionToken : Text, name : Text, contact : Text) : async Nat {
+    validateAdminSession(sessionToken);
+    let lab : Lab = {
+      id = nextLabId;
+      name;
+      contact;
+    };
+    labStore.add(nextLabId, lab);
+    nextLabId += 1;
+    lab.id;
+  };
+
+  public shared ({ caller }) func updateLab(sessionToken : Text, id : Nat, name : Text, contact : Text) : async () {
+    validateAdminSession(sessionToken);
+    switch (labStore.get(id)) {
+      case (null) { Runtime.trap("Lab not found") };
+      case (?_) {
+        let updatedLab : Lab = {
+          id;
+          name;
+          contact;
+        };
+        labStore.add(id, updatedLab);
+      };
+    };
+  };
+
+  public shared ({ caller }) func deleteLab(sessionToken : Text, id : Nat) : async () {
+    validateAdminSession(sessionToken);
+    if (not labStore.containsKey(id)) {
+      Runtime.trap("Lab not found");
+    };
+    labStore.remove(id);
+  };
+
+  public query ({ caller }) func getAllLabs() : async [Lab] {
+    labStore.values().toArray().sort();
+  };
+
+  // SUBACCOUNTS
+  public shared ({ caller }) func createSubAccount(
+    sessionToken : Text,
+    name : Text,
+    phone : Text,
+    pin : Text,
+    labId : ?Nat,
+  ) : async Nat {
+    validateAdminSession(sessionToken);
+
+    switch (labId) {
+      case (?labId) {
+        if (not labStore.containsKey(labId)) {
+          Runtime.trap("Lab does not exist");
+        };
+      };
+      case (null) {};
+    };
+
+    let subAccount : SubAccount = {
+      id = nextSubAccountId;
+      name;
+      phone;
+      pin;
+      labId;
+    };
+    subAccountStore.add(nextSubAccountId, subAccount);
+    nextSubAccountId += 1;
+    subAccount.id;
+  };
+
+  public shared ({ caller }) func updateSubAccount(
+    sessionToken : Text,
+    id : Nat,
+    name : Text,
+    phone : Text,
+    pin : Text,
+    labId : ?Nat,
+  ) : async () {
+    validateAdminSession(sessionToken);
+
+    switch (labId) {
+      case (?labId) {
+        if (not labStore.containsKey(labId)) {
+          Runtime.trap("Lab does not exist");
+        };
+      };
+      case (null) {};
+    };
+
+    switch (subAccountStore.get(id)) {
+      case (null) { Runtime.trap("Subaccount not found") };
+      case (?_) {
+        let updatedSubAccount : SubAccount = {
+          id;
+          name;
+          phone;
+          pin;
+          labId;
+        };
+        subAccountStore.add(id, updatedSubAccount);
+      };
+    };
+  };
+
+  public shared ({ caller }) func deleteSubAccount(sessionToken : Text, id : Nat) : async () {
+    validateAdminSession(sessionToken);
+    if (not subAccountStore.containsKey(id)) {
+      Runtime.trap("Subaccount not found");
+    };
+    subAccountStore.remove(id);
+
+    var keysToRemove : [Text] = [];
+    for ((key, rate) in subAccountRates.entries()) {
+      if (rate.subAccountId == id) {
+        keysToRemove := keysToRemove.concat([key]);
+      };
+    };
+    for (key in keysToRemove.values()) {
+      subAccountRates.remove(key);
+    };
+  };
+
+  public query ({ caller }) func getAllSubAccounts(sessionToken : Text) : async [SubAccount] {
+    validateAdminSession(sessionToken);
+    subAccountStore.values().toArray().sort();
   };
 
   public query ({ caller }) func getTotalSubAccountCount() : async Nat {
     subAccountStore.size();
   };
 
-  /// NEW FUNCTIONALITY
+  public query ({ caller }) func getSubAccountById(subAccountId : Nat) : async ?SubAccount {
+    subAccountStore.get(subAccountId);
+  };
+
+  // SubAccount Pin Verification
+  public query ({ caller }) func verifySubAccountPin(subAccountId : Nat, pin : Text) : async Bool {
+    switch (subAccountStore.get(subAccountId)) {
+      case (?subAccount) {
+        subAccount.pin == pin;
+      };
+      case (null) { false };
+    };
+  };
+
+  // PER-SUBACCOUNT TEST RATES
   public shared ({ caller }) func setSubAccountTestRate(
     sessionToken : Text,
     subAccountId : Nat,
@@ -378,5 +486,107 @@ actor {
       func(rate) { rate.subAccountId == subAccountId }
     );
     filtered;
+  };
+
+  // TRANSACTIONS
+  public shared ({ caller }) func addTransaction(
+    sessionToken : Text,
+    subAccountId : Nat,
+    patientName : Text,
+    date : Text,
+    testIds : [Nat],
+    paidAmount : Float,
+    notes : Text,
+  ) : async Nat {
+    validateAdminSession(sessionToken);
+
+    if (not subAccountStore.containsKey(subAccountId)) {
+      Runtime.trap("Subaccount does not exist");
+    };
+
+    // Calculate total amount
+    var totalAmount : Float = 0.0;
+    for (testId in testIds.values()) {
+      switch (testStore.get(testId)) {
+        case (?test) {
+          // Check for sub-account specific rate
+          let rateKey = subAccountId.toText() # ":" # testId.toText();
+          switch (subAccountRates.get(rateKey)) {
+            case (?rate) {
+              totalAmount += rate.b2bRate;
+            };
+            case (null) {
+              totalAmount += test.b2bRate;
+            };
+          };
+        };
+        case (null) { Runtime.trap("Test with id " # testId.toText() # " not found") };
+      };
+    };
+
+    let dueAmount = totalAmount - paidAmount;
+
+    let transaction : Transaction = {
+      id = nextTransactionId;
+      subAccountId;
+      patientName;
+      date;
+      testIds;
+      totalAmount;
+      paidAmount;
+      dueAmount;
+      notes;
+    };
+    transactionStore.add(nextTransactionId, transaction);
+    nextTransactionId += 1;
+    transaction.id;
+  };
+
+  public shared ({ caller }) func updateTransactionPaid(
+    sessionToken : Text,
+    transactionId : Nat,
+    paidAmount : Float,
+  ) : async () {
+    validateAdminSession(sessionToken);
+    switch (transactionStore.get(transactionId)) {
+      case (null) { Runtime.trap("Transaction not found") };
+      case (?transaction) {
+        let dueAmount = transaction.totalAmount - paidAmount;
+        let updatedTransaction : Transaction = {
+          transaction with
+          paidAmount;
+          dueAmount;
+        };
+        transactionStore.add(transactionId, updatedTransaction);
+      };
+    };
+  };
+
+  public shared ({ caller }) func deleteTransaction(sessionToken : Text, transactionId : Nat) : async () {
+    validateAdminSession(sessionToken);
+    if (not transactionStore.containsKey(transactionId)) {
+      Runtime.trap("Transaction not found");
+    };
+    transactionStore.remove(transactionId);
+  };
+
+  public shared ({ caller }) func getAllTransactions(sessionToken : Text) : async [Transaction] {
+    validateAdminSession(sessionToken);
+    transactionStore.values().toArray();
+  };
+
+  public query ({ caller }) func getSubAccountTransactions(subAccountId : Nat, pin : Text) : async [Transaction] {
+    switch (subAccountStore.get(subAccountId)) {
+      case (?subAccount) {
+        if (subAccount.pin != pin) {
+          Runtime.trap("Invalid pin");
+        };
+        let filtered = transactionStore.values().toArray().filter(
+          func(transaction) { transaction.subAccountId == subAccountId }
+        );
+        filtered;
+      };
+      case (null) { Runtime.trap("Subaccount not found") };
+    };
   };
 };

@@ -16,8 +16,9 @@ export default {
     },
     extend: {
       fontFamily: {
+        sora: ["Sora", "sans-serif"],
         outfit: ["Outfit", "sans-serif"],
-        fraunces: ["Fraunces", "serif"],
+        mono: ["JetBrains Mono", "monospace"],
       },
       colors: {
         border: "oklch(var(--border))",

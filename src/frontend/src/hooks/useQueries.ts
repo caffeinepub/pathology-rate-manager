@@ -1,8 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
+  Lab,
   PathologyTest,
   SubAccount,
   SubAccountRate,
+  Transaction,
 } from "../backend.d.ts";
 import { useActor } from "./useActor";
 
@@ -30,7 +32,19 @@ export function useGetAllSubAccounts(sessionToken: string) {
         return [];
       }
     },
-    enabled: !!actor && !isFetching,
+    enabled: !!actor && !isFetching && !!sessionToken,
+  });
+}
+
+export function useGetSubAccountById(subAccountId: bigint | null) {
+  const { actor, isFetching } = useActor();
+  return useQuery<SubAccount | null>({
+    queryKey: ["subaccount", String(subAccountId)],
+    queryFn: async () => {
+      if (!actor || subAccountId === null) return null;
+      return actor.getSubAccountById(subAccountId);
+    },
+    enabled: !!actor && !isFetching && subAccountId !== null,
   });
 }
 
@@ -146,9 +160,19 @@ export function useCreateSubAccount(sessionToken: string) {
   const { actor } = useActor();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ name, phone }: { name: string; phone: string }) => {
+    mutationFn: async ({
+      name,
+      phone,
+      pin,
+      labId,
+    }: {
+      name: string;
+      phone: string;
+      pin: string;
+      labId: bigint | null;
+    }) => {
       if (!actor) throw new Error("No actor");
-      return actor.createSubAccount(sessionToken, name, phone);
+      return actor.createSubAccount(sessionToken, name, phone, pin, labId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["subaccounts"] });
@@ -164,9 +188,17 @@ export function useUpdateSubAccount(sessionToken: string) {
       id,
       name,
       phone,
-    }: { id: bigint; name: string; phone: string }) => {
+      pin,
+      labId,
+    }: {
+      id: bigint;
+      name: string;
+      phone: string;
+      pin: string;
+      labId: bigint | null;
+    }) => {
       if (!actor) throw new Error("No actor");
-      return actor.updateSubAccount(sessionToken, id, name, phone);
+      return actor.updateSubAccount(sessionToken, id, name, phone, pin, labId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["subaccounts"] });
@@ -249,6 +281,201 @@ export function useDeleteSubAccountTestRate(sessionToken: string) {
       queryClient.invalidateQueries({
         queryKey: ["subAccountRates", String(variables.subAccountId)],
       });
+    },
+  });
+}
+
+// ─── Lab Hooks ────────────────────────────────────────────────────────────────
+
+export function useGetAllLabs() {
+  const { actor, isFetching } = useActor();
+  return useQuery<Lab[]>({
+    queryKey: ["labs"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getAllLabs();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useCreateLab(sessionToken: string) {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      name,
+      contact,
+    }: { name: string; contact: string }) => {
+      if (!actor) throw new Error("No actor");
+      return actor.createLab(sessionToken, name, contact);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["labs"] });
+    },
+  });
+}
+
+export function useUpdateLab(sessionToken: string) {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      name,
+      contact,
+    }: {
+      id: bigint;
+      name: string;
+      contact: string;
+    }) => {
+      if (!actor) throw new Error("No actor");
+      return actor.updateLab(sessionToken, id, name, contact);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["labs"] });
+    },
+  });
+}
+
+export function useDeleteLab(sessionToken: string) {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: bigint) => {
+      if (!actor) throw new Error("No actor");
+      return actor.deleteLab(sessionToken, id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["labs"] });
+      queryClient.invalidateQueries({ queryKey: ["subaccounts"] });
+    },
+  });
+}
+
+// ─── Transaction Hooks ────────────────────────────────────────────────────────
+
+export function useGetAllTransactions(sessionToken: string) {
+  const { actor, isFetching } = useActor();
+  return useQuery<Transaction[]>({
+    queryKey: ["transactions", sessionToken],
+    queryFn: async () => {
+      if (!actor || !sessionToken) return [];
+      try {
+        return await actor.getAllTransactions(sessionToken);
+      } catch {
+        return [];
+      }
+    },
+    enabled: !!actor && !isFetching && !!sessionToken,
+  });
+}
+
+export function useAddTransaction(sessionToken: string) {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      subAccountId,
+      patientName,
+      date,
+      testIds,
+      paidAmount,
+      notes,
+    }: {
+      subAccountId: bigint;
+      patientName: string;
+      date: string;
+      testIds: bigint[];
+      paidAmount: number;
+      notes: string;
+    }) => {
+      if (!actor) throw new Error("No actor");
+      return actor.addTransaction(
+        sessionToken,
+        subAccountId,
+        patientName,
+        date,
+        testIds,
+        paidAmount,
+        notes,
+      );
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+    },
+  });
+}
+
+export function useUpdateTransactionPaid(sessionToken: string) {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      transactionId,
+      paidAmount,
+    }: {
+      transactionId: bigint;
+      paidAmount: number;
+    }) => {
+      if (!actor) throw new Error("No actor");
+      return actor.updateTransactionPaid(
+        sessionToken,
+        transactionId,
+        paidAmount,
+      );
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+    },
+  });
+}
+
+export function useDeleteTransaction(sessionToken: string) {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (transactionId: bigint) => {
+      if (!actor) throw new Error("No actor");
+      return actor.deleteTransaction(sessionToken, transactionId);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+    },
+  });
+}
+
+export function useGetSubAccountTransactions(
+  subAccountId: bigint | null,
+  pin: string,
+) {
+  const { actor, isFetching } = useActor();
+  return useQuery<Transaction[]>({
+    queryKey: ["subAccountTransactions", String(subAccountId), pin],
+    queryFn: async () => {
+      if (!actor || subAccountId === null || !pin) return [];
+      try {
+        return await actor.getSubAccountTransactions(subAccountId, pin);
+      } catch {
+        return [];
+      }
+    },
+    enabled: !!actor && !isFetching && subAccountId !== null && !!pin,
+  });
+}
+
+export function useVerifySubAccountPin() {
+  const { actor } = useActor();
+  return useMutation({
+    mutationFn: async ({
+      subAccountId,
+      pin,
+    }: {
+      subAccountId: bigint;
+      pin: string;
+    }) => {
+      if (!actor) throw new Error("No actor");
+      return actor.verifySubAccountPin(subAccountId, pin);
     },
   });
 }

@@ -91,7 +91,9 @@ export class ExternalBlob {
 }
 export interface SubAccount {
     id: bigint;
+    pin: string;
     name: string;
+    labId?: bigint;
     phone: string;
 }
 export interface PathologyTest {
@@ -101,34 +103,57 @@ export interface PathologyTest {
     b2bRate: number;
     category: string;
 }
+export interface Lab {
+    id: bigint;
+    contact: string;
+    name: string;
+}
 export interface SubAccountRate {
     b2bRate: number;
     testId: bigint;
     subAccountId: bigint;
 }
+export interface Transaction {
+    id: bigint;
+    date: string;
+    totalAmount: number;
+    notes: string;
+    patientName: string;
+    testIds: Array<bigint>;
+    paidAmount: number;
+    subAccountId: bigint;
+    dueAmount: number;
+}
 export interface backendInterface {
     addPathologyTest(sessionToken: string, name: string, category: string, mrp: number, b2bRate: number): Promise<bigint>;
     addSampleData(): Promise<void>;
+    addTransaction(sessionToken: string, subAccountId: bigint, patientName: string, date: string, testIds: Array<bigint>, paidAmount: number, notes: string): Promise<bigint>;
     adminLogin(username: string, password: string): Promise<string>;
     adminLogout(): Promise<void>;
-    createSubAccount(sessionToken: string, name: string, phone: string): Promise<bigint>;
+    createLab(sessionToken: string, name: string, contact: string): Promise<bigint>;
+    createSubAccount(sessionToken: string, name: string, phone: string, pin: string, labId: bigint | null): Promise<bigint>;
+    deleteLab(sessionToken: string, id: bigint): Promise<void>;
     deletePathologyTest(sessionToken: string, id: bigint): Promise<void>;
     deleteSubAccount(sessionToken: string, id: bigint): Promise<void>;
     deleteSubAccountTestRate(sessionToken: string, subAccountId: bigint, testId: bigint): Promise<void>;
+    deleteTransaction(sessionToken: string, transactionId: bigint): Promise<void>;
+    getAllLabs(): Promise<Array<Lab>>;
     getAllSubAccounts(sessionToken: string): Promise<Array<SubAccount>>;
     getAllTests(): Promise<Array<PathologyTest>>;
-    getB2BTests(): Promise<Array<PathologyTest>>;
+    getAllTransactions(sessionToken: string): Promise<Array<Transaction>>;
+    getSubAccountById(subAccountId: bigint): Promise<SubAccount | null>;
     getSubAccountRates(subAccountId: bigint): Promise<Array<SubAccountRate>>;
-    getTestByCategory(category: string): Promise<Array<PathologyTest>>;
+    getSubAccountTransactions(subAccountId: bigint, pin: string): Promise<Array<Transaction>>;
     getTotalSubAccountCount(): Promise<bigint>;
     getTotalTestCount(): Promise<bigint>;
-    /**
-     * / NEW FUNCTIONALITY
-     */
     setSubAccountTestRate(sessionToken: string, subAccountId: bigint, testId: bigint, b2bRate: number): Promise<void>;
+    updateLab(sessionToken: string, id: bigint, name: string, contact: string): Promise<void>;
     updatePathologyTest(sessionToken: string, id: bigint, name: string, category: string, mrp: number, b2bRate: number): Promise<void>;
-    updateSubAccount(sessionToken: string, id: bigint, name: string, phone: string): Promise<void>;
+    updateSubAccount(sessionToken: string, id: bigint, name: string, phone: string, pin: string, labId: bigint | null): Promise<void>;
+    updateTransactionPaid(sessionToken: string, transactionId: bigint, paidAmount: number): Promise<void>;
+    verifySubAccountPin(subAccountId: bigint, pin: string): Promise<boolean>;
 }
+import type { SubAccount as _SubAccount } from "./declarations/backend.did.d.ts";
 export class Backend implements backendInterface {
     constructor(private actor: ActorSubclass<_SERVICE>, private _uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, private _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, private processError?: (error: unknown) => never){}
     async addPathologyTest(arg0: string, arg1: string, arg2: string, arg3: number, arg4: number): Promise<bigint> {
@@ -156,6 +181,20 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor.addSampleData();
+            return result;
+        }
+    }
+    async addTransaction(arg0: string, arg1: bigint, arg2: string, arg3: string, arg4: Array<bigint>, arg5: number, arg6: string): Promise<bigint> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.addTransaction(arg0, arg1, arg2, arg3, arg4, arg5, arg6);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.addTransaction(arg0, arg1, arg2, arg3, arg4, arg5, arg6);
             return result;
         }
     }
@@ -187,17 +226,45 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async createSubAccount(arg0: string, arg1: string, arg2: string): Promise<bigint> {
+    async createLab(arg0: string, arg1: string, arg2: string): Promise<bigint> {
         if (this.processError) {
             try {
-                const result = await this.actor.createSubAccount(arg0, arg1, arg2);
+                const result = await this.actor.createLab(arg0, arg1, arg2);
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.createSubAccount(arg0, arg1, arg2);
+            const result = await this.actor.createLab(arg0, arg1, arg2);
+            return result;
+        }
+    }
+    async createSubAccount(arg0: string, arg1: string, arg2: string, arg3: string, arg4: bigint | null): Promise<bigint> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.createSubAccount(arg0, arg1, arg2, arg3, to_candid_opt_n1(this._uploadFile, this._downloadFile, arg4));
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.createSubAccount(arg0, arg1, arg2, arg3, to_candid_opt_n1(this._uploadFile, this._downloadFile, arg4));
+            return result;
+        }
+    }
+    async deleteLab(arg0: string, arg1: bigint): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.deleteLab(arg0, arg1);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.deleteLab(arg0, arg1);
             return result;
         }
     }
@@ -243,18 +310,46 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async getAllSubAccounts(arg0: string): Promise<Array<SubAccount>> {
+    async deleteTransaction(arg0: string, arg1: bigint): Promise<void> {
         if (this.processError) {
             try {
-                const result = await this.actor.getAllSubAccounts(arg0);
+                const result = await this.actor.deleteTransaction(arg0, arg1);
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.getAllSubAccounts(arg0);
+            const result = await this.actor.deleteTransaction(arg0, arg1);
             return result;
+        }
+    }
+    async getAllLabs(): Promise<Array<Lab>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getAllLabs();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getAllLabs();
+            return result;
+        }
+    }
+    async getAllSubAccounts(arg0: string): Promise<Array<SubAccount>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getAllSubAccounts(arg0);
+                return from_candid_vec_n2(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getAllSubAccounts(arg0);
+            return from_candid_vec_n2(this._uploadFile, this._downloadFile, result);
         }
     }
     async getAllTests(): Promise<Array<PathologyTest>> {
@@ -271,18 +366,32 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async getB2BTests(): Promise<Array<PathologyTest>> {
+    async getAllTransactions(arg0: string): Promise<Array<Transaction>> {
         if (this.processError) {
             try {
-                const result = await this.actor.getB2BTests();
+                const result = await this.actor.getAllTransactions(arg0);
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.getB2BTests();
+            const result = await this.actor.getAllTransactions(arg0);
             return result;
+        }
+    }
+    async getSubAccountById(arg0: bigint): Promise<SubAccount | null> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getSubAccountById(arg0);
+                return from_candid_opt_n6(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getSubAccountById(arg0);
+            return from_candid_opt_n6(this._uploadFile, this._downloadFile, result);
         }
     }
     async getSubAccountRates(arg0: bigint): Promise<Array<SubAccountRate>> {
@@ -299,17 +408,17 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async getTestByCategory(arg0: string): Promise<Array<PathologyTest>> {
+    async getSubAccountTransactions(arg0: bigint, arg1: string): Promise<Array<Transaction>> {
         if (this.processError) {
             try {
-                const result = await this.actor.getTestByCategory(arg0);
+                const result = await this.actor.getSubAccountTransactions(arg0, arg1);
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.getTestByCategory(arg0);
+            const result = await this.actor.getSubAccountTransactions(arg0, arg1);
             return result;
         }
     }
@@ -355,6 +464,20 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async updateLab(arg0: string, arg1: bigint, arg2: string, arg3: string): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.updateLab(arg0, arg1, arg2, arg3);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.updateLab(arg0, arg1, arg2, arg3);
+            return result;
+        }
+    }
     async updatePathologyTest(arg0: string, arg1: bigint, arg2: string, arg3: string, arg4: number, arg5: number): Promise<void> {
         if (this.processError) {
             try {
@@ -369,20 +492,84 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async updateSubAccount(arg0: string, arg1: bigint, arg2: string, arg3: string): Promise<void> {
+    async updateSubAccount(arg0: string, arg1: bigint, arg2: string, arg3: string, arg4: string, arg5: bigint | null): Promise<void> {
         if (this.processError) {
             try {
-                const result = await this.actor.updateSubAccount(arg0, arg1, arg2, arg3);
+                const result = await this.actor.updateSubAccount(arg0, arg1, arg2, arg3, arg4, to_candid_opt_n1(this._uploadFile, this._downloadFile, arg5));
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.updateSubAccount(arg0, arg1, arg2, arg3);
+            const result = await this.actor.updateSubAccount(arg0, arg1, arg2, arg3, arg4, to_candid_opt_n1(this._uploadFile, this._downloadFile, arg5));
             return result;
         }
     }
+    async updateTransactionPaid(arg0: string, arg1: bigint, arg2: number): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.updateTransactionPaid(arg0, arg1, arg2);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.updateTransactionPaid(arg0, arg1, arg2);
+            return result;
+        }
+    }
+    async verifySubAccountPin(arg0: bigint, arg1: string): Promise<boolean> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.verifySubAccountPin(arg0, arg1);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.verifySubAccountPin(arg0, arg1);
+            return result;
+        }
+    }
+}
+function from_candid_SubAccount_n3(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _SubAccount): SubAccount {
+    return from_candid_record_n4(_uploadFile, _downloadFile, value);
+}
+function from_candid_opt_n5(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [bigint]): bigint | null {
+    return value.length === 0 ? null : value[0];
+}
+function from_candid_opt_n6(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_SubAccount]): SubAccount | null {
+    return value.length === 0 ? null : from_candid_SubAccount_n3(_uploadFile, _downloadFile, value[0]);
+}
+function from_candid_record_n4(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+    id: bigint;
+    pin: string;
+    name: string;
+    labId: [] | [bigint];
+    phone: string;
+}): {
+    id: bigint;
+    pin: string;
+    name: string;
+    labId?: bigint;
+    phone: string;
+} {
+    return {
+        id: value.id,
+        pin: value.pin,
+        name: value.name,
+        labId: record_opt_to_undefined(from_candid_opt_n5(_uploadFile, _downloadFile, value.labId)),
+        phone: value.phone
+    };
+}
+function from_candid_vec_n2(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Array<_SubAccount>): Array<SubAccount> {
+    return value.map((x)=>from_candid_SubAccount_n3(_uploadFile, _downloadFile, x));
+}
+function to_candid_opt_n1(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: bigint | null): [] | [bigint] {
+    return value === null ? candid_none() : candid_some(value);
 }
 export interface CreateActorOptions {
     agent?: Agent;

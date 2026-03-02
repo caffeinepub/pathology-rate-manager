@@ -10,6 +10,7 @@ import type { ActorMethod } from '@icp-sdk/core/agent';
 import type { IDL } from '@icp-sdk/core/candid';
 import type { Principal } from '@icp-sdk/core/principal';
 
+export interface Lab { 'id' : bigint, 'contact' : string, 'name' : string }
 export interface PathologyTest {
   'id' : bigint,
   'mrp' : number,
@@ -17,11 +18,28 @@ export interface PathologyTest {
   'b2bRate' : number,
   'category' : string,
 }
-export interface SubAccount { 'id' : bigint, 'name' : string, 'phone' : string }
+export interface SubAccount {
+  'id' : bigint,
+  'pin' : string,
+  'name' : string,
+  'labId' : [] | [bigint],
+  'phone' : string,
+}
 export interface SubAccountRate {
   'b2bRate' : number,
   'testId' : bigint,
   'subAccountId' : bigint,
+}
+export interface Transaction {
+  'id' : bigint,
+  'date' : string,
+  'totalAmount' : number,
+  'notes' : string,
+  'patientName' : string,
+  'testIds' : Array<bigint>,
+  'paidAmount' : number,
+  'subAccountId' : bigint,
+  'dueAmount' : number,
 }
 export interface _SERVICE {
   'addPathologyTest' : ActorMethod<
@@ -29,31 +47,49 @@ export interface _SERVICE {
     bigint
   >,
   'addSampleData' : ActorMethod<[], undefined>,
+  'addTransaction' : ActorMethod<
+    [string, bigint, string, string, Array<bigint>, number, string],
+    bigint
+  >,
   'adminLogin' : ActorMethod<[string, string], string>,
   'adminLogout' : ActorMethod<[], undefined>,
-  'createSubAccount' : ActorMethod<[string, string, string], bigint>,
+  'createLab' : ActorMethod<[string, string, string], bigint>,
+  'createSubAccount' : ActorMethod<
+    [string, string, string, string, [] | [bigint]],
+    bigint
+  >,
+  'deleteLab' : ActorMethod<[string, bigint], undefined>,
   'deletePathologyTest' : ActorMethod<[string, bigint], undefined>,
   'deleteSubAccount' : ActorMethod<[string, bigint], undefined>,
   'deleteSubAccountTestRate' : ActorMethod<[string, bigint, bigint], undefined>,
+  'deleteTransaction' : ActorMethod<[string, bigint], undefined>,
+  'getAllLabs' : ActorMethod<[], Array<Lab>>,
   'getAllSubAccounts' : ActorMethod<[string], Array<SubAccount>>,
   'getAllTests' : ActorMethod<[], Array<PathologyTest>>,
-  'getB2BTests' : ActorMethod<[], Array<PathologyTest>>,
+  'getAllTransactions' : ActorMethod<[string], Array<Transaction>>,
+  'getSubAccountById' : ActorMethod<[bigint], [] | [SubAccount]>,
   'getSubAccountRates' : ActorMethod<[bigint], Array<SubAccountRate>>,
-  'getTestByCategory' : ActorMethod<[string], Array<PathologyTest>>,
+  'getSubAccountTransactions' : ActorMethod<
+    [bigint, string],
+    Array<Transaction>
+  >,
   'getTotalSubAccountCount' : ActorMethod<[], bigint>,
   'getTotalTestCount' : ActorMethod<[], bigint>,
-  /**
-   * / NEW FUNCTIONALITY
-   */
   'setSubAccountTestRate' : ActorMethod<
     [string, bigint, bigint, number],
     undefined
   >,
+  'updateLab' : ActorMethod<[string, bigint, string, string], undefined>,
   'updatePathologyTest' : ActorMethod<
     [string, bigint, string, string, number, number],
     undefined
   >,
-  'updateSubAccount' : ActorMethod<[string, bigint, string, string], undefined>,
+  'updateSubAccount' : ActorMethod<
+    [string, bigint, string, string, string, [] | [bigint]],
+    undefined
+  >,
+  'updateTransactionPaid' : ActorMethod<[string, bigint, number], undefined>,
+  'verifySubAccountPin' : ActorMethod<[bigint, string], boolean>,
 }
 export declare const idlService: IDL.ServiceClass;
 export declare const idlInitArgs: IDL.Type[];

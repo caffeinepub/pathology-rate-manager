@@ -8,9 +8,16 @@
 
 import { IDL } from '@icp-sdk/core/candid';
 
+export const Lab = IDL.Record({
+  'id' : IDL.Nat,
+  'contact' : IDL.Text,
+  'name' : IDL.Text,
+});
 export const SubAccount = IDL.Record({
   'id' : IDL.Nat,
+  'pin' : IDL.Text,
   'name' : IDL.Text,
+  'labId' : IDL.Opt(IDL.Nat),
   'phone' : IDL.Text,
 });
 export const PathologyTest = IDL.Record({
@@ -19,6 +26,17 @@ export const PathologyTest = IDL.Record({
   'name' : IDL.Text,
   'b2bRate' : IDL.Float64,
   'category' : IDL.Text,
+});
+export const Transaction = IDL.Record({
+  'id' : IDL.Nat,
+  'date' : IDL.Text,
+  'totalAmount' : IDL.Float64,
+  'notes' : IDL.Text,
+  'patientName' : IDL.Text,
+  'testIds' : IDL.Vec(IDL.Nat),
+  'paidAmount' : IDL.Float64,
+  'subAccountId' : IDL.Nat,
+  'dueAmount' : IDL.Float64,
 });
 export const SubAccountRate = IDL.Record({
   'b2bRate' : IDL.Float64,
@@ -33,23 +51,45 @@ export const idlService = IDL.Service({
       [],
     ),
   'addSampleData' : IDL.Func([], [], []),
+  'addTransaction' : IDL.Func(
+      [
+        IDL.Text,
+        IDL.Nat,
+        IDL.Text,
+        IDL.Text,
+        IDL.Vec(IDL.Nat),
+        IDL.Float64,
+        IDL.Text,
+      ],
+      [IDL.Nat],
+      [],
+    ),
   'adminLogin' : IDL.Func([IDL.Text, IDL.Text], [IDL.Text], []),
   'adminLogout' : IDL.Func([], [], []),
-  'createSubAccount' : IDL.Func([IDL.Text, IDL.Text, IDL.Text], [IDL.Nat], []),
+  'createLab' : IDL.Func([IDL.Text, IDL.Text, IDL.Text], [IDL.Nat], []),
+  'createSubAccount' : IDL.Func(
+      [IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Opt(IDL.Nat)],
+      [IDL.Nat],
+      [],
+    ),
+  'deleteLab' : IDL.Func([IDL.Text, IDL.Nat], [], []),
   'deletePathologyTest' : IDL.Func([IDL.Text, IDL.Nat], [], []),
   'deleteSubAccount' : IDL.Func([IDL.Text, IDL.Nat], [], []),
   'deleteSubAccountTestRate' : IDL.Func([IDL.Text, IDL.Nat, IDL.Nat], [], []),
-  'getAllSubAccounts' : IDL.Func([IDL.Text], [IDL.Vec(SubAccount)], []),
+  'deleteTransaction' : IDL.Func([IDL.Text, IDL.Nat], [], []),
+  'getAllLabs' : IDL.Func([], [IDL.Vec(Lab)], ['query']),
+  'getAllSubAccounts' : IDL.Func([IDL.Text], [IDL.Vec(SubAccount)], ['query']),
   'getAllTests' : IDL.Func([], [IDL.Vec(PathologyTest)], ['query']),
-  'getB2BTests' : IDL.Func([], [IDL.Vec(PathologyTest)], ['query']),
+  'getAllTransactions' : IDL.Func([IDL.Text], [IDL.Vec(Transaction)], []),
+  'getSubAccountById' : IDL.Func([IDL.Nat], [IDL.Opt(SubAccount)], ['query']),
   'getSubAccountRates' : IDL.Func(
       [IDL.Nat],
       [IDL.Vec(SubAccountRate)],
       ['query'],
     ),
-  'getTestByCategory' : IDL.Func(
-      [IDL.Text],
-      [IDL.Vec(PathologyTest)],
+  'getSubAccountTransactions' : IDL.Func(
+      [IDL.Nat, IDL.Text],
+      [IDL.Vec(Transaction)],
       ['query'],
     ),
   'getTotalSubAccountCount' : IDL.Func([], [IDL.Nat], ['query']),
@@ -59,24 +99,34 @@ export const idlService = IDL.Service({
       [],
       [],
     ),
+  'updateLab' : IDL.Func([IDL.Text, IDL.Nat, IDL.Text, IDL.Text], [], []),
   'updatePathologyTest' : IDL.Func(
       [IDL.Text, IDL.Nat, IDL.Text, IDL.Text, IDL.Float64, IDL.Float64],
       [],
       [],
     ),
   'updateSubAccount' : IDL.Func(
-      [IDL.Text, IDL.Nat, IDL.Text, IDL.Text],
+      [IDL.Text, IDL.Nat, IDL.Text, IDL.Text, IDL.Text, IDL.Opt(IDL.Nat)],
       [],
       [],
     ),
+  'updateTransactionPaid' : IDL.Func([IDL.Text, IDL.Nat, IDL.Float64], [], []),
+  'verifySubAccountPin' : IDL.Func([IDL.Nat, IDL.Text], [IDL.Bool], ['query']),
 });
 
 export const idlInitArgs = [];
 
 export const idlFactory = ({ IDL }) => {
+  const Lab = IDL.Record({
+    'id' : IDL.Nat,
+    'contact' : IDL.Text,
+    'name' : IDL.Text,
+  });
   const SubAccount = IDL.Record({
     'id' : IDL.Nat,
+    'pin' : IDL.Text,
     'name' : IDL.Text,
+    'labId' : IDL.Opt(IDL.Nat),
     'phone' : IDL.Text,
   });
   const PathologyTest = IDL.Record({
@@ -85,6 +135,17 @@ export const idlFactory = ({ IDL }) => {
     'name' : IDL.Text,
     'b2bRate' : IDL.Float64,
     'category' : IDL.Text,
+  });
+  const Transaction = IDL.Record({
+    'id' : IDL.Nat,
+    'date' : IDL.Text,
+    'totalAmount' : IDL.Float64,
+    'notes' : IDL.Text,
+    'patientName' : IDL.Text,
+    'testIds' : IDL.Vec(IDL.Nat),
+    'paidAmount' : IDL.Float64,
+    'subAccountId' : IDL.Nat,
+    'dueAmount' : IDL.Float64,
   });
   const SubAccountRate = IDL.Record({
     'b2bRate' : IDL.Float64,
@@ -99,27 +160,49 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'addSampleData' : IDL.Func([], [], []),
-    'adminLogin' : IDL.Func([IDL.Text, IDL.Text], [IDL.Text], []),
-    'adminLogout' : IDL.Func([], [], []),
-    'createSubAccount' : IDL.Func(
-        [IDL.Text, IDL.Text, IDL.Text],
+    'addTransaction' : IDL.Func(
+        [
+          IDL.Text,
+          IDL.Nat,
+          IDL.Text,
+          IDL.Text,
+          IDL.Vec(IDL.Nat),
+          IDL.Float64,
+          IDL.Text,
+        ],
         [IDL.Nat],
         [],
       ),
+    'adminLogin' : IDL.Func([IDL.Text, IDL.Text], [IDL.Text], []),
+    'adminLogout' : IDL.Func([], [], []),
+    'createLab' : IDL.Func([IDL.Text, IDL.Text, IDL.Text], [IDL.Nat], []),
+    'createSubAccount' : IDL.Func(
+        [IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Opt(IDL.Nat)],
+        [IDL.Nat],
+        [],
+      ),
+    'deleteLab' : IDL.Func([IDL.Text, IDL.Nat], [], []),
     'deletePathologyTest' : IDL.Func([IDL.Text, IDL.Nat], [], []),
     'deleteSubAccount' : IDL.Func([IDL.Text, IDL.Nat], [], []),
     'deleteSubAccountTestRate' : IDL.Func([IDL.Text, IDL.Nat, IDL.Nat], [], []),
-    'getAllSubAccounts' : IDL.Func([IDL.Text], [IDL.Vec(SubAccount)], []),
+    'deleteTransaction' : IDL.Func([IDL.Text, IDL.Nat], [], []),
+    'getAllLabs' : IDL.Func([], [IDL.Vec(Lab)], ['query']),
+    'getAllSubAccounts' : IDL.Func(
+        [IDL.Text],
+        [IDL.Vec(SubAccount)],
+        ['query'],
+      ),
     'getAllTests' : IDL.Func([], [IDL.Vec(PathologyTest)], ['query']),
-    'getB2BTests' : IDL.Func([], [IDL.Vec(PathologyTest)], ['query']),
+    'getAllTransactions' : IDL.Func([IDL.Text], [IDL.Vec(Transaction)], []),
+    'getSubAccountById' : IDL.Func([IDL.Nat], [IDL.Opt(SubAccount)], ['query']),
     'getSubAccountRates' : IDL.Func(
         [IDL.Nat],
         [IDL.Vec(SubAccountRate)],
         ['query'],
       ),
-    'getTestByCategory' : IDL.Func(
-        [IDL.Text],
-        [IDL.Vec(PathologyTest)],
+    'getSubAccountTransactions' : IDL.Func(
+        [IDL.Nat, IDL.Text],
+        [IDL.Vec(Transaction)],
         ['query'],
       ),
     'getTotalSubAccountCount' : IDL.Func([], [IDL.Nat], ['query']),
@@ -129,15 +212,26 @@ export const idlFactory = ({ IDL }) => {
         [],
         [],
       ),
+    'updateLab' : IDL.Func([IDL.Text, IDL.Nat, IDL.Text, IDL.Text], [], []),
     'updatePathologyTest' : IDL.Func(
         [IDL.Text, IDL.Nat, IDL.Text, IDL.Text, IDL.Float64, IDL.Float64],
         [],
         [],
       ),
     'updateSubAccount' : IDL.Func(
-        [IDL.Text, IDL.Nat, IDL.Text, IDL.Text],
+        [IDL.Text, IDL.Nat, IDL.Text, IDL.Text, IDL.Text, IDL.Opt(IDL.Nat)],
         [],
         [],
+      ),
+    'updateTransactionPaid' : IDL.Func(
+        [IDL.Text, IDL.Nat, IDL.Float64],
+        [],
+        [],
+      ),
+    'verifySubAccountPin' : IDL.Func(
+        [IDL.Nat, IDL.Text],
+        [IDL.Bool],
+        ['query'],
       ),
   });
 };
